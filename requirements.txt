@@ -1,0 +1,4 @@
+python-dotenv==1.2.2
+loguru==0.7.3
+# ESPN calls and the ntfy / Telegram / Discord channels. Always used with a timeout.
+requests==2.34.2

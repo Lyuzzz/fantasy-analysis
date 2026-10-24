@@ -33,9 +33,9 @@ No web UI and no multi-user support.
 
 ## 3. Tech stack
 
-- Python 3.10+, minimal dependencies: `requests`, `python-dotenv`. Call ESPN with `requests` directly, always with a timeout and retries. The `espn_api` library does not set request timeouts, so use it only as a reference (copy its constant tables).
+- Python 3.10+ (Docker image and CI use 3.12), minimal dependencies: `requests`, `python-dotenv`, `loguru` (logging, same as stock-ai). Call ESPN with `requests` directly, always with a timeout and retries. The `espn_api` library does not set request timeouts, so use it only as a reference (copy its constant tables).
 - SQLite (stdlib `sqlite3`) for state and de-duplication.
-- Deployment: **Compute Engine VM**, Linux, **systemd** (see section 13). No Cloud Run.
+- Deployment: **Compute Engine VM** with **Docker Compose**, same as stock-ai (see section 13). No Cloud Run, no systemd.
 - Store and compare all timestamps in UTC (timezone-aware). Convert to local time only for display and quiet hours.
 
 ---
@@ -146,7 +146,7 @@ Fetch data -> analyze -> build alerts -> compare with alerts already stored in S
 | Preview (v2) | week |
 
 ### 6.2 Cadence and quiet hours
-- `check` is the single entry point. It decides by itself whether it should run now (`scheduler.should_run_now()`), so a systemd timer can simply call it every 10 minutes.
+- `check` is the single entry point. It decides by itself whether it should run now (`scheduler.should_run_now()`), so the `run` loop (the Docker `CMD`) can simply call it every `CHECK_INTERVAL_SECONDS` (default 600).
 - Derive the schedule from the NFL schedule you already fetch, not from hard-coded weekdays (this covers Thanksgiving, Christmas, Saturday games, London games):
   - **Active window**: from `ACTIVE_LEAD_HOURS` (default 2) before the first kickoff of a game day until the last kickoff + 4 hours -> run every 10 minutes. This should cover the roughly 90-minute-before-kickoff inactive-list release.
   - **Otherwise**: run every 60 minutes.
@@ -157,7 +157,7 @@ Fetch data -> analyze -> build alerts -> compare with alerts already stored in S
 - **401 / cookie expired**: send one push "ESPN cookie expired, update `ESPN_S2`/`SWID`", de-duplicated so it does not repeat every run.
 - **Parse or schema failure**: if ESPN's response no longer matches what the parser expects, send a push and log the details. Do not just log it.
 - **Heartbeat**: once a week (and optionally after each successful Sunday window) send "still alive, last successful check at ...". Optionally also ping a healthchecks.io URL (`HEALTHCHECK_URL`) after each successful run.
-- If all notification channels fail, the run exits non-zero so systemd records the failure.
+- If all notification channels fail, log an error and leave the alerts unmarked so the next check retries them. A crashed container is restarted by Docker (`restart: unless-stopped`).
 
 ---
 
@@ -222,6 +222,7 @@ HEALTHCHECK_URL=         # optional
 | Command | Purpose |
 |---|---|
 | `python -m ffai check [--dry-run]` | Run one check (decides itself whether it is time to run, see 6.2). `--dry-run` prints messages only: no push, nothing recorded, and it ignores the schedule gate |
+| `python -m ffai run` | Loop forever, calling `check` every `CHECK_INTERVAL_SECONDS`. This is the Docker `CMD` |
 | `python -m ffai report` | Print the full analysis to the terminal: lineup, win probability, free agents, whole-league matchups |
 | `python -m ffai teams` | List all teams and their IDs |
 | `python -m ffai test-notify` | Send a test message to every configured channel |
@@ -234,7 +235,9 @@ HEALTHCHECK_URL=         # optional
 ```
 fantasy-analysis/
 ├── ffai/
-│   ├── config.py        # load .env
+│   ├── config.py        # load .env into a settings object
+│   ├── log_config.py    # loguru setup
+│   ├── retry_util.py    # retry with backoff
 │   ├── espn_client.py   # HTTP + timeout/retry
 │   ├── parser.py        # raw JSON -> dataclasses (pure, testable)
 │   ├── models.py
@@ -247,7 +250,9 @@ fantasy-analysis/
 │   ├── scheduler.py     # cadence (from NFL schedule) + quiet hours
 │   └── cli.py
 ├── tests/
-├── deploy/              # setup_vm.sh, fantasy-analysis.service, fantasy-analysis.timer
+├── .github/workflows/ci.yml
+├── Dockerfile, docker-compose.yml, DEPLOY.md
+├── requirements.txt, requirements-dev.txt
 ├── .env.example
 └── README.md            # written in Chinese
 ```
@@ -265,7 +270,7 @@ fantasy-analysis/
 
 ## 13. Deployment (GCP Compute Engine VM)
 
-- venv for dependencies. A **systemd timer** (every 10 minutes) triggers a oneshot service that runs `python -m ffai check`; `check` itself decides whether it is time to do work. Failures are visible in `journalctl`.
+- **Docker Compose**, same as stock-ai (see `DEPLOY.md`). The container runs `python -m ffai run`; `check` itself decides whether it is time to do work. State lives in `./data/ffai.db` (volume). Logs: `docker compose logs -f`. `restart: unless-stopped` brings it back after a crash.
 - The program only makes outbound requests, so no firewall ports need to be opened.
 - **Deploy early**: as soon as step 5 below works, deploy it and let it run through at least one real Sunday. Lineup alerts depend on real-game behavior (inactive lists, ESPN status lag) that local dry-runs cannot show.
 

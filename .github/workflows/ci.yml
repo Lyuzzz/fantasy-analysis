@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      # Syntax errors and undefined names only, same rule set as stock-ai.
+      - run: ruff check --select E9,F63,F7,F82 ffai tests
+      # Import every module once: catches a broken import that no test touches.
+      - run: python -c "import ffai.cli, ffai.espn_client, ffai.parser, ffai.lineup, ffai.analysis, ffai.alerts, ffai.scheduler, ffai.ai"
+      - run: pytest tests -q
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t ffai .
