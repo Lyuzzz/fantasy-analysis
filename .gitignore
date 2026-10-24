@@ -3,7 +3,10 @@
 
 # Local state
 *.db
+*.db-wal
+*.db-shm
 *.sqlite3
+data/
 
 # Python
 __pycache__/
@@ -11,6 +14,10 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+.ruff_cache/
+
+# Personal Claude Code rules (same as stock-ai)
+CLAUDE.md
 
 # OS / editor
 .DS_Store

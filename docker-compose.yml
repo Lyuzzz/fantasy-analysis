@@ -1,0 +1,16 @@
+services:
+  ffai:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - FFAI_DB_PATH=/data/ffai.db
+      - TZ=America/Denver
+    volumes:
+      - ./data:/data
+    # The program only makes outbound requests, so no ports are published.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

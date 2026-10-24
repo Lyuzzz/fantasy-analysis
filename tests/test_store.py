@@ -1,0 +1,66 @@
+import pytest
+
+from ffai import store
+from ffai.config import settings
+from ffai.models import LINEUP, Alert
+
+
+@pytest.fixture(autouse=True)
+def fresh_db(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "db_path", tmp_path / "test.db")
+
+
+def _alert(key="lineup:7:swap-a"):
+    return Alert(kind=LINEUP, key=key, title="Start X, bench Y", body="...", week=7)
+
+
+def test_unknown_alert_is_not_sent():
+    assert store.is_sent("lineup:7:swap-a") is False
+
+
+def test_mark_sent_returns_true_only_the_first_time():
+    assert store.mark_sent(_alert()) is True
+    assert store.mark_sent(_alert()) is False
+
+
+def test_is_sent_is_read_only_until_mark_sent():
+    # The gate must not record anything: a failed notification has to be
+    # retried on the next check.
+    assert store.is_sent("lineup:7:swap-a") is False
+    assert store.is_sent("lineup:7:swap-a") is False
+    store.mark_sent(_alert())
+    assert store.is_sent("lineup:7:swap-a") is True
+
+
+def test_different_keys_are_independent():
+    store.mark_sent(_alert("lineup:7:swap-a"))
+    assert store.is_sent("lineup:7:swap-b") is False
+
+
+def test_league_id_is_stored_with_the_alert(tmp_path):
+    import sqlite3
+
+    store.mark_sent(Alert(kind=LINEUP, key="111:lineup:7:a", title="T", body="B", week=7, league_id="111"))
+    row = sqlite3.connect(tmp_path / "test.db").execute("SELECT league_id FROM sent_alerts").fetchone()
+    assert row == ("111",)
+
+
+def test_the_same_swap_in_two_leagues_is_two_alerts():
+    # Keys start with the league id, so one league's alert never hides the other's.
+    assert store.mark_sent(Alert(kind=LINEUP, key="111:lineup:7:a", title="T", body="B", league_id="111")) is True
+    assert store.mark_sent(Alert(kind=LINEUP, key="222:lineup:7:a", title="T", body="B", league_id="222")) is True
+
+
+def test_kv_returns_default_then_stored_value_then_overwrite():
+    assert store.get_kv("cookie_expired_reported") is None
+    assert store.get_kv("cookie_expired_reported", "no") == "no"
+    store.set_kv("cookie_expired_reported", "yes")
+    assert store.get_kv("cookie_expired_reported") == "yes"
+    store.set_kv("cookie_expired_reported", "no")
+    assert store.get_kv("cookie_expired_reported") == "no"
+
+
+def test_database_file_is_created_on_first_use(tmp_path):
+    assert not (tmp_path / "test.db").exists()
+    store.is_sent("anything")
+    assert (tmp_path / "test.db").exists()
