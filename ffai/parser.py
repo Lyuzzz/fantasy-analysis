@@ -1,13 +1,14 @@
 # ==============================================================================
-# parser.py - raw ESPN JSON -> models.py dataclasses
+# parser.py: raw ESPN JSON to the dataclasses in models.py
 #
-# Pure functions, no network. They accept ONE merged league response, the same
-# shape ESPN returns for ?view=mSettings&view=mTeam&view=mRoster&view=mMatchupScore.
-# Tests use trimmed real responses from cwendt94/espn-api (tests/fixtures/).
+# The functions are pure. They use no network.
+# They accept ONE merged league response. ESPN returns this shape for
+# ?view=mSettings&view=mTeam&view=mRoster&view=mMatchupScore.
+# The tests use trimmed real responses from cwendt94/espn-api (tests/fixtures/).
 #
-# When ESPN changes its format we raise EspnParseError with a clear message, so
-# the caller can tell the user (side panel now, a health alert later - SPEC 6.3)
-# instead of the program going quiet.
+# When ESPN changes its format, the parser raises EspnParseError with a clear message.
+# The caller can then tell the user. Today the panel shows the message.
+# Later a health alert shows it (SPEC 6.3). The program does not go quiet.
 # ==============================================================================
 from datetime import datetime, timezone
 from typing import Any
@@ -16,7 +17,7 @@ from ffai.models import FreeAgent, League, Matchup, Player, ProGame, RosterEntry
 
 
 class EspnParseError(Exception):
-    """ESPN's response no longer matches what we expect."""
+    """The ESPN response no longer matches what the parser expects."""
 
 
 def _need(raw: dict, key: str, where: str) -> Any:
@@ -31,18 +32,20 @@ def _ms_to_utc(ms: int | float) -> datetime:
 
 
 def _norm_swid(swid: str) -> str:
-    """'{abc-1}' and 'ABC-1' compare equal."""
+    """'{abc-1}' and 'ABC-1' are equal after this function."""
     return swid.strip().strip("{}").lower()
 
 
-# --- players ---
+# Players
 
 
 def _stat_value(stats: list[dict], year: int, *, source: int, split: int, period: int, field: str) -> float | None:
-    """One number from player.stats[].
+    """Return one number from player.stats[].
 
-    statSourceId: 0 actual, 1 projected. statSplitTypeId: 0 whole season, 1 single week.
-    scoringPeriodId 0 is the whole-season row. Rows of other seasons are ignored.
+    statSourceId 0 means actual and 1 means projected.
+    statSplitTypeId 0 is the whole season and 1 is a single week.
+    scoringPeriodId 0 is the row for the whole season.
+    The function ignores rows of other seasons.
     """
     for row in stats:
         if (
@@ -66,7 +69,7 @@ def _parse_player(raw: dict, year: int, week: int) -> Player:
             position_id=int(raw["defaultPositionId"]),
             eligible_slots=tuple(int(s) for s in raw["eligibleSlots"]),
             pro_team_id=int(raw.get("proTeamId", 0)),
-            # D/ST rows often have no injuryStatus at all.
+            # A D/ST row often has no injuryStatus.
             injury_status=raw.get("injuryStatus") or "ACTIVE",
             percent_owned=float(ownership.get("percentOwned") or 0.0),
             percent_change=float(ownership.get("percentChange") or 0.0),
@@ -88,7 +91,7 @@ def _parse_entry(raw: dict, year: int, week: int) -> RosterEntry:
     )
 
 
-# --- league ---
+# League
 
 
 def _parse_team(raw: dict, year: int, week: int) -> Team:
@@ -116,7 +119,7 @@ def parse_league(raw: dict) -> League:
         name=settings.get("name") or "",
         scoring_period=week,
         matchup_period=int(_need(_need(raw, "status", "the league"), "currentMatchupPeriod", "status")),
-        # ESPN sends the slot ids as JSON object keys, which are always strings.
+        # ESPN sends the slot ids as JSON object keys. A JSON key is always a string.
         lineup_slot_counts={int(slot): int(n) for slot, n in counts.items()},
         teams=tuple(_parse_team(t, year, week) for t in _need(raw, "teams", "the league")),
         schedule=tuple(
@@ -126,15 +129,17 @@ def parse_league(raw: dict) -> League:
                 away_team_id=int(m["away"]["teamId"]),
             )
             for m in raw.get("schedule") or ()
-            if "home" in m and "away" in m  # a bye week has only one side
+            if "home" in m and "away" in m  # A bye week has only one side.
         ),
         trade_deadline=_ms_to_utc(deadline) if deadline else None,
     )
 
 
 def find_my_team(league: League, swid: str, team_id: str = "") -> Team:
-    """The team whose owners include my SWID, or the explicit team id for this
-    league (settings.team_id_for(league.id))."""
+    """Return the team whose owners include the SWID.
+
+    Use the explicit team id instead when it is set (settings.team_id_for(league.id)).
+    """
     if team_id:
         for team in league.teams:
             if str(team.id) == str(team_id):
@@ -148,24 +153,24 @@ def find_my_team(league: League, swid: str, team_id: str = "") -> Team:
     raise EspnParseError(f"none of the teams in league {league.id} is owned by this account (SWID)")
 
 
-# --- NFL schedule and free agents ---
+# NFL schedule and free agents
 
 
 def parse_pro_schedule(raw: dict) -> tuple[ProGame, ...]:
-    """Kickoffs for every NFL game. A team with no game in a week is on bye."""
+    """Return the kickoff of every NFL game. A team with no game in a week is on a bye."""
     games: list[ProGame] = []
     pro_teams = _need(_need(raw, "settings", "the NFL schedule"), "proTeams", "settings")
     for team in pro_teams:
         for week, week_games in (team.get("proGamesByScoringPeriod") or {}).items():
             for g in week_games:
-                # Each game appears under both teams. Keep this team's side only.
+                # Each game appears under both teams. Keep only the side of this team.
                 if team["id"] in (g["homeProTeamId"], g["awayProTeamId"]):
                     games.append(ProGame(pro_team_id=int(team["id"]), week=int(week), kickoff=_ms_to_utc(g["date"])))
     return tuple(games)
 
 
 def parse_pro_team_names(raw: dict) -> dict[int, str]:
-    """proTeamId -> abbreviation, from the same NFL schedule response."""
+    """Map each proTeamId to its abbreviation. The data comes from the same NFL schedule response."""
     pro_teams = _need(_need(raw, "settings", "the NFL schedule"), "proTeams", "settings")
     return {int(t["id"]): t.get("abbrev", "") for t in pro_teams if "id" in t}
 

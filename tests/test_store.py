@@ -24,8 +24,8 @@ def test_mark_sent_returns_true_only_the_first_time():
 
 
 def test_is_sent_is_read_only_until_mark_sent():
-    # The gate must not record anything: a failed notification has to be
-    # retried on the next check.
+    # The gate must not record anything.
+    # The next check must retry a failed notification.
     assert store.is_sent("lineup:7:swap-a") is False
     assert store.is_sent("lineup:7:swap-a") is False
     store.mark_sent(_alert())
@@ -46,7 +46,7 @@ def test_league_id_is_stored_with_the_alert(tmp_path):
 
 
 def test_the_same_swap_in_two_leagues_is_two_alerts():
-    # Keys start with the league id, so one league's alert never hides the other's.
+    # A key starts with the league id. The alert of one league never hides the alert of the other league.
     assert store.mark_sent(Alert(kind=LINEUP, key="111:lineup:7:a", title="T", body="B", league_id="111")) is True
     assert store.mark_sent(Alert(kind=LINEUP, key="222:lineup:7:a", title="T", body="B", league_id="222")) is True
 

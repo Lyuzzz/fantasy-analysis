@@ -1,12 +1,12 @@
-// Calls to the local ffai service (python -m ffai serve). It only listens on
-// 127.0.0.1. The ESPN data and the AI key go there and nowhere else.
+// Calls to the local ffai service (python -m ffai serve). The service listens on
+// 127.0.0.1 only. The ESPN data and the AI key go to the service and nowhere else.
 
 export class ServiceDownError extends Error {
   constructor(base) {
     super(`The ffai service is not running at ${base}. Start it with:  python -m ffai serve`);
   }
 }
-// The service answered with an error. `kind` is "parse" for an ESPN format problem.
+// The service answered with an error. `kind` is "parse" when the ESPN data has a format problem.
 export class ServiceError extends Error {
   constructor(status, message, kind) {
     super(message);
@@ -30,7 +30,7 @@ async function request(base, method, path, body, fetchFn = fetch) {
   try {
     data = await response.json();
   } catch {
-    // keep data = null; handled below
+    // Keep data as null. The code below handles this case.
   }
   if (!response.ok) {
     throw new ServiceError(response.status, (data && data.error) || `Service answered HTTP ${response.status}`, data && data.kind);

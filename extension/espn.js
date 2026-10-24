@@ -1,11 +1,11 @@
-// ESPN requests (SPEC section 4). They run in the side panel with the user's own
-// ESPN login: the browser attaches the cookies, so this code never reads,
-// stores or sends espn_s2. The only cookie we read is SWID, which says who the
-// user is (it is an id, not a login credential).
+// ESPN requests (SPEC section 4). They run in the side panel with the ESPN login of the user.
+// The browser attaches the cookies, so this code never reads, stores or sends espn_s2.
+// The only cookie that this code reads is SWID. SWID says who the user is.
+// SWID is an id. It is not a login credential.
 
 export const ESPN_API = "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl";
 
-// Not logged in to ESPN, or this account cannot see the league.
+// The user has no ESPN login, or the account cannot see the league.
 export class EspnAuthError extends Error {}
 // ESPN answered with an error status.
 export class EspnHttpError extends Error {
@@ -14,11 +14,11 @@ export class EspnHttpError extends Error {
     this.status = status;
   }
 }
-// ESPN answered 200 but not with JSON (for example a login page).
+// ESPN answered 200, but the answer is not JSON. An example is a login page.
 export class EspnFormatError extends Error {}
 
-// The NFL season is named after the year it starts in. From June on we are in
-// the new season (leagues exist before the September kickoff).
+// The NFL names a season after the year in which it starts.
+// From June on, the new season applies, because leagues exist before the September kickoff.
 export function defaultSeason(now = new Date()) {
   return now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1;
 }
@@ -73,8 +73,8 @@ async function getJson(url, headers = {}, fetchFn = fetch) {
   }
 }
 
-// One request with the views the analysis needs. The scoring period defaults to
-// the current NFL week, which ESPN reports back in `scoringPeriodId`.
+// One request with the views that the analysis needs.
+// The scoring period defaults to the current NFL week. ESPN reports the week in `scoringPeriodId`.
 export function fetchLeague(season, leagueId, fetchFn = fetch) {
   return getJson(leagueUrl(season, leagueId, ["mSettings", "mTeam", "mRoster", "mMatchupScore"]), {}, fetchFn);
 }
@@ -88,7 +88,7 @@ export function fetchFreeAgents(season, leagueId, week, fetchFn = fetch) {
   return getJson(url, { "x-fantasy-filter": JSON.stringify(FREE_AGENT_FILTER) }, fetchFn);
 }
 
-// SWID looks like {XXXXXXXX-XXXX-...}; Chrome may show it URL-encoded.
+// SWID looks like {XXXXXXXX-XXXX-...}. Chrome can show it URL-encoded.
 export async function readSwid(cookiesApi = chrome.cookies) {
   try {
     const cookie = await cookiesApi.get({ url: "https://www.espn.com", name: "SWID" });

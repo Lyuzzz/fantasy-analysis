@@ -1,8 +1,8 @@
 # ==============================================================================
-# log_config.py - loguru setup (stderr only, like stock-ai)
+# log_config.py: loguru setup. Logs go to stderr only, as in stock-ai.
 #
-# Docker's json-file driver collects stderr and caps its size, so we do not
-# write log files ourselves.
+# The json-file driver of Docker collects stderr and limits its size.
+# The program therefore writes no log files.
 # ==============================================================================
 import logging
 import os
@@ -10,8 +10,8 @@ import sys
 
 from loguru import logger
 
-# Libraries that log every HTTP request at INFO level. They would bury our
-# own lines during the 10-minute check cycle.
+# These libraries log every HTTP request at INFO level.
+# Without this list, their lines hide the lines of the program.
 _NOISY = ["urllib3", "requests", "httpx", "httpcore", "asyncio"]
 
 

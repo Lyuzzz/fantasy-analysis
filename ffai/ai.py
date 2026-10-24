@@ -1,16 +1,19 @@
 # ==============================================================================
-# ai.py - optional LLM explanation of an analysis result (SPEC section 7)
+# ai.py: optional LLM explanation of an analysis result (SPEC section 7)
 #
-# The numbers always come from pipeline.analyze(). The model only turns them
-# into short advice. Rules:
+# The numbers always come from pipeline.analyze().
+# The model only turns the numbers into short advice.
+# Rules:
 #   * ANY failure falls back to template_text(), so the caller always gets text.
-#   * The API key arrives with each request (from the side panel). It is never
-#     stored, never logged, and scrubbed from every error message.
-#   * Plain HTTP with a timeout, no SDK.
+#   * The API key arrives with each request from the panel.
+#     The service never stores the key and never logs it.
+#     The service removes the key from every error message.
+#   * The code uses plain HTTP with a timeout. It uses no SDK.
 #
-# Only the basic request fields (model, max_tokens, system, messages) are sent,
-# so nothing here depends on newer API options. AI_EFFORT is read by config.py
-# but not sent yet: check the current Anthropic docs before adding it.
+# The code sends only the basic request fields (model, max_tokens, system, messages).
+# It does not depend on newer API options.
+# config.py reads AI_EFFORT, but the code does not send it yet.
+# Check the current Anthropic docs before you add it.
 # ==============================================================================
 import json
 from dataclasses import dataclass
@@ -38,14 +41,17 @@ SYSTEM_PROMPT = (
 
 @dataclass(frozen=True)
 class AiSettings:
-    provider: str = "anthropic"  # "anthropic" or "openai" (any OpenAI-compatible endpoint)
+    provider: str = "anthropic"  # "anthropic" or "openai". "openai" covers any OpenAI-compatible endpoint.
     api_key: str = ""
     model: str = ""
     base_url: str = ""
 
     @classmethod
     def from_request(cls, raw: dict | None) -> "AiSettings":
-        """Values from the panel win; empty fields fall back to AI_* in .env."""
+        """Build the settings from the request.
+
+        A value from the panel wins. An empty field falls back to AI_* in .env.
+        """
         raw = raw if isinstance(raw, dict) else {}
 
         def pick(name: str, fallback: str) -> str:
@@ -64,7 +70,7 @@ class AiSettings:
 class Explanation:
     text: str
     source: str  # "ai" or "template"
-    error: str = ""  # why the template was used; safe to show (the key is scrubbed)
+    error: str = ""  # Why the code used the template. It is safe to show, because the code removed the key.
 
 
 class AiError(Exception):
@@ -72,7 +78,7 @@ class AiError(Exception):
 
 
 def template_text(result: dict) -> str:
-    """Plain Chinese summary with no AI. Used without a key and as the fallback."""
+    """Return a plain Chinese summary without AI. The code uses it without a key and as the fallback."""
     lines = [f"{result['team']['name']} - 第{result['league']['week']}周"]
     alerts = [w for w in result.get("warnings", []) if w["level"] != "info"]
     if alerts:
@@ -93,7 +99,8 @@ def explain(result: dict, ai: AiSettings) -> Explanation:
         if not text:
             raise AiError("the model returned no text")
         return Explanation(text, "ai")
-    except Exception as e:  # noqa: BLE001 - an AI failure must never block the answer
+    except Exception as e:  # noqa: BLE001
+        # An AI failure must never block the answer.
         message = _scrub(str(e), ai.api_key)
         logger.warning(f"AI explanation failed, using the template: {message}")
         return Explanation(template_text(result), "template", message)
@@ -133,7 +140,7 @@ def _post(url: str, headers: dict, body: dict, key: str) -> dict:
 
 def _call_anthropic(user_message: str, ai: AiSettings) -> str:
     data = _post(
-        ANTHROPIC_URL,  # base_url is for OpenAI-compatible services only
+        ANTHROPIC_URL,  # Only OpenAI-compatible services use base_url.
         {"x-api-key": ai.api_key, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json"},
         {
             "model": ai.model or DEFAULT_ANTHROPIC_MODEL,
@@ -156,8 +163,8 @@ def _call_openai(user_message: str, ai: AiSettings) -> str:
         {"Authorization": f"Bearer {ai.api_key}", "content-type": "application/json"},
         {
             "model": ai.model,
-            # No max_tokens: newer OpenAI models renamed it, and other
-            # OpenAI-compatible services differ. The prompt asks for a short answer.
+            # The request has no max_tokens. Newer OpenAI models renamed it.
+            # Other OpenAI-compatible services differ. The prompt asks for a short answer.
             "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_message}],
         },
         ai.api_key,

@@ -10,7 +10,7 @@ from ffai.pipeline import analyze
 
 FIXTURES = Path(__file__).parent / "fixtures"
 MY_SWID = "{AAAAAAAA-0000-4000-8000-000000000001}"
-# Week 1 of the 2024 fixture schedule starts on 2024-09-05 (a Thursday night game).
+# Week 1 of the 2024 fixture schedule starts on 2024-09-05 with a Thursday night game.
 BEFORE_KICKOFFS = datetime(2024, 9, 1, tzinfo=timezone.utc)
 AFTER_KICKOFFS = datetime(2024, 9, 20, tzinfo=timezone.utc)
 
@@ -49,7 +49,7 @@ def test_starters_are_in_display_order(payload):
 
 
 def test_unfinished_work_is_listed_as_pending(payload):
-    # The lineup optimizer is not written yet. The result must say so.
+    # The lineup optimizer does not exist yet. The result must say so.
     assert "best lineup" in analyze(payload, now=BEFORE_KICKOFFS)["pending"]
 
 
@@ -69,7 +69,7 @@ def test_the_result_is_json_serializable(payload):
     json.dumps(analyze(payload, now=BEFORE_KICKOFFS))
 
 
-# --- warnings ---
+# Warnings
 
 
 def _set_injury(payload, team_index, slot_id, status):
@@ -81,7 +81,7 @@ def _set_injury(payload, team_index, slot_id, status):
 
 
 def test_a_starter_who_is_out_raises_an_alert(payload):
-    name = _set_injury(payload, 1, 0, "OUT")  # my QB
+    name = _set_injury(payload, 1, 0, "OUT")  # the QB of the user
     warnings = analyze(payload, now=BEFORE_KICKOFFS)["warnings"]
     assert {"level": "alert", "text": f"{name} (QB) is OUT and is in your starting lineup."} in warnings
 
@@ -114,7 +114,7 @@ def test_a_starter_on_bye_raises_an_alert(payload):
         if e["lineupSlotId"] == 0
     )
     schedule_team = next(t for t in payload["pro_schedule"]["settings"]["proTeams"] if t["id"] == team_id)
-    del schedule_team["proGamesByScoringPeriod"]["1"]  # no game in week 1 = bye
+    del schedule_team["proGamesByScoringPeriod"]["1"]  # A team with no game in week 1 is on a bye.
     result = analyze(payload, now=BEFORE_KICKOFFS)
     assert any("bye" in w["text"] for w in result["warnings"])
     assert result["starters"][0]["bye"] is True
@@ -143,11 +143,11 @@ def test_missing_schedule_is_stated_not_hidden(payload):
     assert any("schedule" in t for t in texts)
 
 
-# --- kickoff and locked state ---
+# Kickoff and locked state
 
 
 def test_started_follows_the_kickoff_time(payload):
-    for team in payload["league"]["teams"]:  # the 2018 fixture has stale lock flags
+    for team in payload["league"]["teams"]:  # The 2018 fixture has stale lock flags.
         for e in team["roster"]["entries"]:
             e["playerPoolEntry"]["lineupLocked"] = False
     before = analyze(payload, now=BEFORE_KICKOFFS)["starters"]
@@ -156,7 +156,7 @@ def test_started_follows_the_kickoff_time(payload):
     assert all(p["started"] for p in after if p["kickoff"])
 
 
-# --- bad requests ---
+# Bad requests
 
 
 def test_not_a_json_object_is_rejected():

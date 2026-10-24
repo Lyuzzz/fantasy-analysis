@@ -32,7 +32,7 @@ class FakeResponse:
 
 @pytest.fixture
 def sent(monkeypatch):
-    """Capture the HTTP call. `sent.reply` is what the fake server answers."""
+    """Capture the HTTP call. `sent.reply` holds the answer of the fake server."""
 
     class Sent:
         calls = []
@@ -53,7 +53,7 @@ def _anthropic(model="claude-sonnet-5-5"):
     return AiSettings(provider="anthropic", api_key=SECRET, model=model)
 
 
-# --- template ---
+# Template
 
 
 def test_template_lists_alerts_but_not_info_lines():
@@ -61,7 +61,7 @@ def test_template_lists_alerts_but_not_info_lines():
     assert "My Team" in text and "第7周" in text
     assert "Player A (RB) is OUT" in text
     assert "Questionable" not in text
-    assert "best lineup" in text  # unfinished checks are stated
+    assert "best lineup" in text  # The text names the checks that are not done yet.
 
 
 def test_template_for_a_clean_team():
@@ -69,7 +69,7 @@ def test_template_for_a_clean_team():
     assert "没有发现" in template_text(clean)
 
 
-# --- no key: no network call ---
+# No key: no network call
 
 
 def test_without_a_key_the_template_is_used_and_nothing_is_sent(sent):
@@ -83,7 +83,7 @@ def test_without_a_model_the_template_is_used(sent):
     assert sent.calls == []
 
 
-# --- Anthropic ---
+# Anthropic
 
 
 def test_anthropic_request_carries_key_model_and_the_analysis(sent):
@@ -103,7 +103,7 @@ def test_anthropic_text_blocks_are_joined(sent):
     assert explain(RESULT, _anthropic()).text == "AB"
 
 
-# --- OpenAI-compatible ---
+# OpenAI-compatible
 
 
 def test_openai_compatible_request(sent):
@@ -112,7 +112,7 @@ def test_openai_compatible_request(sent):
     out = explain(RESULT, ai_settings)
     assert out == Explanation("Use B.", "ai")
     call = sent.calls[0]
-    assert call["url"] == "https://api.deepseek.com/v1/chat/completions"  # trailing slash handled
+    assert call["url"] == "https://api.deepseek.com/v1/chat/completions"  # The code handles the trailing slash.
     assert call["headers"]["Authorization"] == f"Bearer {SECRET}"
     assert call["json"]["model"] == "deepseek-chat"
     assert call["json"]["messages"][0]["role"] == "system"
@@ -124,7 +124,7 @@ def test_openai_default_base_url(sent):
     assert sent.calls[0]["url"] == "https://api.openai.com/v1/chat/completions"
 
 
-# --- failures fall back, and never leak the key ---
+# A failure falls back to the template and never leaks the key
 
 
 def test_http_error_falls_back_and_scrubs_the_key(sent):
@@ -177,7 +177,7 @@ def test_the_key_is_not_written_to_the_log_on_failure(sent):
     assert lines and not any(SECRET in str(line) for line in lines)
 
 
-# --- settings from the panel ---
+# Settings from the panel
 
 
 def test_panel_values_win_over_env(monkeypatch):

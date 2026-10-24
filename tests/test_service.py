@@ -19,8 +19,8 @@ def _load(name):
 
 @pytest.fixture
 def server():
-    srv = service.make_server(0)  # port 0: the OS picks a free port
-    # A short poll interval makes shutdown() fast; the default waits up to 0.5 s.
+    srv = service.make_server(0)  # Port 0 lets the OS pick a free port.
+    # A short poll interval makes shutdown() fast. The default interval waits up to 0.5 s.
     thread = threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True)
     thread.start()
     yield srv
@@ -29,7 +29,7 @@ def server():
 
 
 def call(server, method, path, body=None, headers=None, raw=None):
-    """One real HTTP request over a local socket. Returns (status, headers, json)."""
+    """Send one real HTTP request over a local socket. Return (status, headers, json)."""
     conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=10)
     send_headers = {} if headers is None else dict(headers)
     data = raw
@@ -53,7 +53,7 @@ def payload():
     }
 
 
-# --- basics ---
+# Basics
 
 
 def test_health(server):
@@ -77,7 +77,7 @@ def test_analyze_round_trip(server, payload):
     assert body["starters"] and "pending" in body
 
 
-# --- request checks ---
+# Request checks
 
 
 def test_bad_json_is_400(server):
@@ -118,7 +118,7 @@ def test_internal_error_is_500_and_the_server_keeps_running(server, payload, mon
     assert call(server, "GET", "/health")[0] == 200
 
 
-# --- who may call ---
+# Who may call
 
 
 def test_foreign_web_page_origin_is_rejected(server, payload):
@@ -144,7 +144,7 @@ def test_pinned_extension_id_rejects_other_extensions(server, payload, monkeypat
 
 
 def test_other_host_header_is_rejected(server):
-    # DNS rebinding: a page on evil.example resolving to 127.0.0.1 sends this Host.
+    # This is DNS rebinding. A page on evil.example resolves to 127.0.0.1 and sends this Host.
     status, *_ = call(server, "GET", "/health", headers={"Host": "evil.example"})
     assert status == 403
 
@@ -164,7 +164,7 @@ def test_preflight_from_a_web_page_is_rejected(server):
     assert status == 403
 
 
-# --- explain ---
+# Explain
 
 
 def test_explain_without_a_key_returns_the_template(server, payload, monkeypatch):

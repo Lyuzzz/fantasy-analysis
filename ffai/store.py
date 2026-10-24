@@ -1,13 +1,15 @@
 # ==============================================================================
-# store.py - SQLite state: which alerts were already sent, plus small flags
+# store.py: SQLite state. It records which alerts the program sent.
+# It also holds small flags.
 #
-# Flow (SPEC 6.1), same shape as stock-ai's news gate:
-#   is_sent(key)    read-only check, safe to call any time
+# The flow (SPEC 6.1) has the same shape as the news gate in stock-ai:
+#   is_sent(key)      reads only. The caller can use it at any time.
 #   ... notify ...
-#   mark_sent(alert) called ONLY after at least one channel delivered it.
-# If every channel fails we skip mark_sent, so the next check retries.
+#   mark_sent(alert)  runs ONLY after at least one channel delivered the alert.
+# When every channel fails, the caller skips mark_sent. The next check then retries.
 #
-# Uses the stdlib sqlite3 module (no ORM). All timestamps are UTC.
+# The module uses the sqlite3 module of the standard library. It uses no ORM.
+# All timestamps are UTC.
 # ==============================================================================
 import sqlite3
 from collections.abc import Iterator
@@ -36,14 +38,14 @@ CREATE TABLE IF NOT EXISTS kv (
 
 @contextmanager
 def _session() -> Iterator[sqlite3.Connection]:
-    # settings.db_path is read on every call (not at import) so tests can
-    # point it at a temp file.
+    # The function reads settings.db_path on every call, not at import.
+    # A test can then point it at a temporary file.
     path = Path(settings.db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, timeout=10)
     try:
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.executescript(_SCHEMA)  # IF NOT EXISTS: cheap, and no separate init step
+        conn.executescript(_SCHEMA)  # IF NOT EXISTS is cheap and removes the need for a separate init step
         yield conn
         conn.commit()
     finally:
@@ -61,7 +63,7 @@ def is_sent(key: str) -> bool:
 
 
 def mark_sent(alert: Alert) -> bool:
-    """Record an alert as sent. Returns True only if the key was new."""
+    """Record an alert as sent. Return True only if the key is new."""
     try:
         with _session() as conn:
             conn.execute(
@@ -70,7 +72,7 @@ def mark_sent(alert: Alert) -> bool:
             )
         return True
     except sqlite3.IntegrityError:
-        return False  # already recorded (a second run, or a retry after a crash)
+        return False  # The key exists already (a second run, or a retry after a crash).
 
 
 def get_kv(key: str, default: str | None = None) -> str | None:

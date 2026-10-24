@@ -1,21 +1,25 @@
 # ==============================================================================
-# espn_client.py - HTTP calls to ESPN's unofficial API   [STUB - SPEC step 2]
+# espn_client.py: HTTP calls to the unofficial ESPN API   [STUB: SPEC step 2]
 #
-# One method per row of the SPEC section 4 table. Every call needs a timeout
-# and retry.retry(); the espn_api library has no timeouts, so we do not use it.
-# Returns RAW JSON (dicts). Turning JSON into models is parser.py's job.
+# Each method matches one row of the SPEC section 4 table.
+# Every call needs a timeout and retry.retry().
+# The program does not use the espn_api library, because that library sets no timeouts.
+# The methods return RAW JSON (dicts). parser.py turns the JSON into models.
 # ==============================================================================
 from collections.abc import Sequence
 
 
 class EspnAuthError(Exception):
-    """ESPN answered 401: espn_s2 / SWID are wrong or expired (SPEC 6.3)."""
+    """ESPN answered 401. The espn_s2 or SWID cookie is wrong or expired (SPEC 6.3)."""
 
 
 class EspnClient:
-    """One client per league. The cookies belong to the account, so every
-    league uses the same espn_s2 and SWID. The NFL schedule does not depend on
-    the league: fetch it once per check, not once per league."""
+    """One client for each league.
+
+    The cookies belong to the account, so every league uses the same espn_s2 and SWID.
+    The NFL schedule does not depend on the league.
+    Fetch it once for each check, not once for each league.
+    """
 
     def __init__(self, league_id: str, year: int, espn_s2: str, swid: str):
         self.league_id = league_id
@@ -24,21 +28,21 @@ class EspnClient:
         self.swid = swid
 
     def get_league(self) -> dict:
-        """mSettings + mTeam + mRoster + mMatchupScore views."""
+        """The mSettings, mTeam, mRoster and mMatchupScore views."""
         raise NotImplementedError("SPEC section 4: league data")
 
     def get_pro_schedule(self) -> dict:
-        """proTeamSchedules_wl view: kickoff times and bye weeks."""
+        """The proTeamSchedules_wl view. It has kickoff times and bye weeks."""
         raise NotImplementedError("SPEC section 4: NFL schedule")
 
     def get_free_agents(self, week: int, limit: int = 100) -> dict:
-        """kona_player_info view with the FREEAGENT / WAIVERS filter."""
+        """The kona_player_info view with the FREEAGENT and WAIVERS filter."""
         raise NotImplementedError("SPEC section 4: free agents")
 
     def get_player_stats(self, player_ids: Sequence[int], week: int) -> dict:
-        """kona_playercard view; batches of at most 40 ids per request."""
+        """The kona_playercard view. Each request holds at most 40 ids."""
         raise NotImplementedError("SPEC section 4: weekly score history")
 
     def get_recent_drops(self) -> dict:
-        """communication view filtered to ACTIVITY_TRANSACTIONS."""
+        """The communication view with the ACTIVITY_TRANSACTIONS filter."""
         raise NotImplementedError("SPEC section 4: recently dropped players")

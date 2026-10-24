@@ -1,5 +1,5 @@
-// Side panel UI. Nothing is requested from ESPN until the user clicks "Analyze",
-// and the AI is only called when the user clicks "Explain with AI".
+// Side panel UI. The panel requests nothing from ESPN until the user clicks "Analyze".
+// The panel calls the AI only when the user clicks "Explain with AI".
 import {
   EspnAuthError,
   EspnFormatError,
@@ -25,14 +25,14 @@ const el = {
   aiBaseRow: $("ai-base-row"), presets: $("model-presets"), serviceBase: $("service-base"),
 };
 
-// leagues: [{id, teamId}]. selected: a league id, or "all".
+// leagues is a list of {id, teamId}. selected is a league id, or "all".
 const state = {
   leagues: [], selected: "all", season: defaultSeason(), serviceBase: DEFAULT_BASE,
   ai: { provider: "anthropic", apiKey: "", model: ANTHROPIC_MODELS[0], baseUrl: "" },
-  results: [], // [{league, result}] from the last Analyze
+  results: [], // [{league, result}] from the last Analyze click
 };
 
-// --- tiny DOM helper. Text only: ESPN data never goes through innerHTML. ---
+// A small DOM helper. It writes text only, so ESPN data never goes through innerHTML.
 function h(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs)) {
@@ -46,7 +46,7 @@ function h(tag, attrs = {}, ...children) {
   return node;
 }
 
-// --- storage ---
+// Storage
 async function load() {
   try {
     const saved = await chrome.storage.local.get(["leagues", "selected", "season", "ai", "serviceBase"]);
@@ -58,14 +58,14 @@ async function load() {
       ai: { ...state.ai, ...(saved.ai ?? {}) },
     });
   } catch {
-    // Storage can be unavailable; the panel still works with the defaults.
+    // Storage can be unavailable. The panel then works with the defaults.
   }
 }
 const save = () => chrome.storage.local.set({
   leagues: state.leagues, selected: state.selected, season: state.season, ai: state.ai, serviceBase: state.serviceBase,
 }).catch(() => {});
 
-// --- status line ---
+// Status line
 function setStatus(text, isError = false) {
   el.status.textContent = text;
   el.status.className = isError ? "error" : "";
@@ -87,7 +87,7 @@ function describeError(error) {
   return `Unexpected error: ${error && error.message ? error.message : error}`;
 }
 
-// --- league list ---
+// League list
 function currentLeague() {
   return state.leagues.find((l) => l.id === state.selected) ?? null;
 }
@@ -119,7 +119,7 @@ function addLeague(id, teamId = "") {
   setStatus("");
 }
 
-// --- AI settings ---
+// AI settings
 function renderAi() {
   const { provider, apiKey, model, baseUrl } = state.ai;
   el.aiProvider.value = provider;
@@ -142,7 +142,7 @@ function updateExplainState() {
   el.explainHint.textContent = aiReady() ? "" : "Enter an API key and a model in AI settings.";
 }
 
-// --- rendering the result ---
+// Render the result
 const fmt = (n) => (n === null || n === undefined ? "-" : Number(n).toFixed(1));
 
 function gameCell(p) {
@@ -207,7 +207,7 @@ function errorCard(league, error) {
   return h("article", { class: "card" }, h("h2", {}, `League ${league.id}`), h("div", { class: "error-card" }, describeError(error)));
 }
 
-// --- Analyze ---
+// Analyze
 async function runAnalyze() {
   const targets = state.selected === "all" ? state.leagues : [currentLeague()].filter(Boolean);
   if (!targets.length) return setStatus("Add a league id first.", true);
@@ -220,7 +220,7 @@ async function runAnalyze() {
   try {
     const base = state.serviceBase.replace(/\/$/, "");
     setStatus("Checking the ffai service...");
-    await health(base); // fail fast, before any ESPN request
+    await health(base); // Fail fast, before any ESPN request.
     const swid = await readSwid();
     let schedule = null;
     for (const league of targets) {
@@ -228,7 +228,7 @@ async function runAnalyze() {
         setStatus(`League ${league.id}: reading ESPN...`);
         const raw = await fetchLeague(state.season, league.id);
         schedule ??= await fetchProSchedule(state.season);
-        // Free agents are a bonus: if this request fails, the rest still works.
+        // Free agents are optional. When this request fails, the rest still works.
         const freeAgents = await fetchFreeAgents(state.season, league.id, raw.scoringPeriodId).catch(() => null);
         setStatus(`League ${league.id}: analyzing...`);
         const result = await analyze(base, {
@@ -239,7 +239,7 @@ async function runAnalyze() {
       } catch (error) {
         failures += 1;
         el.results.append(errorCard(league, error));
-        // No point trying the next league when the service itself is down.
+        // The next league cannot work when the service is down, so stop here.
         if (error instanceof ServiceDownError) break;
       }
     }
@@ -253,7 +253,7 @@ async function runAnalyze() {
   }
 }
 
-// --- Explain ---
+// Explain
 async function runExplain() {
   if (!aiReady() || !state.results.length) return;
   el.explain.disabled = true;
@@ -280,7 +280,7 @@ async function runExplain() {
   }
 }
 
-// --- service status (a local ping only; no ESPN request) ---
+// Service status. This is a local ping only. It sends no ESPN request.
 async function refreshServiceStatus() {
   try {
     await health(state.serviceBase.replace(/\/$/, ""));
@@ -292,7 +292,7 @@ async function refreshServiceStatus() {
   }
 }
 
-// --- wiring ---
+// Wiring
 function bind() {
   $("add-league").addEventListener("click", () => {
     addLeague(el.leagueInput.value.trim());

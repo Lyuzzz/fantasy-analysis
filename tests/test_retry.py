@@ -35,4 +35,4 @@ def test_raises_the_last_error_after_all_tries(sleeps):
 
     with pytest.raises(ValueError, match="still broken"):
         retry(always_fails, tries=3)
-    assert len(sleeps) == 2  # no sleep after the final attempt
+    assert len(sleeps) == 2  # The code does not sleep after the final attempt.

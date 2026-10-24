@@ -1,23 +1,26 @@
 # ==============================================================================
-# service.py - local HTTP service for the Chrome extension
+# service.py: local HTTP service for the Chrome extension
 #
-#   GET  /health    {"ok": true}
-#   POST /analyze   body: {league, pro_schedule?, free_agents?, swid?, team_id?}
-#                   -> pipeline.analyze() result (numbers only, no AI)
-#   POST /explain   body: {result, ai: {provider, api_key, model, base_url}}
-#                   -> {"text", "source": "ai"|"template", "error"}
+#   GET  /health    returns {"ok": true}
+#   POST /analyze   request body: {league, pro_schedule?, free_agents?, swid?, team_id?}
+#                   returns the result of pipeline.analyze() (numbers only, no AI)
+#   POST /explain   request body: {result, ai: {provider, api_key, model, base_url}}
+#                   returns {"text", "source": "ai"|"template", "error"}
 #
-# Safety rules (the service holds no secrets of its own, but it must not be a
-# door for other web pages):
-#   * binds to 127.0.0.1 only, never 0.0.0.0
-#   * the Host header must be 127.0.0.1 / localhost (stops DNS rebinding)
-#   * a request that carries an Origin must come from a chrome-extension://
-#     page (pinned to EXTENSION_ID when set). Browsers always send Origin on a
-#     cross-origin POST, so a web page cannot get through. curl sends none.
-#   * POST bodies must be application/json, which forces a CORS preflight
-#   * bodies are size-limited, and are never logged (they hold the AI key)
+# Safety rules.
+# The service holds no secrets of its own. It must still not be a door for other web pages.
+#   * It listens on 127.0.0.1 only. It never listens on 0.0.0.0.
+#   * The Host header must be 127.0.0.1 or localhost. This stops DNS rebinding.
+#   * A request with an Origin header must come from a chrome-extension:// page.
+#     When EXTENSION_ID is set, the page must come from that extension.
+#     A browser always sends Origin on a cross-origin POST, so a web page cannot get through.
+#     curl sends no Origin header.
+#   * A POST body must be application/json. This forces a CORS preflight.
+#   * The service limits the body size.
+#     It never logs a body, because a body can hold the AI key.
 #
-# stdlib http.server on purpose: no new dependency for three small endpoints.
+# The service uses http.server from the standard library on purpose.
+# Three small endpoints do not need a new dependency.
 # ==============================================================================
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -30,7 +33,7 @@ from ffai.parser import EspnParseError
 from ffai.pipeline import analyze
 
 HOST = "127.0.0.1"
-# A real league response with player stats for every team can be several MB.
+# A real league response with player stats for every team can hold several MB.
 MAX_BODY_BYTES = 16 * 1024 * 1024
 EXTENSION_ORIGIN_PREFIX = "chrome-extension://"
 
@@ -39,15 +42,16 @@ class _Handler(BaseHTTPRequestHandler):
     server_version = "ffai"
     protocol_version = "HTTP/1.1"
 
-    # --- plumbing ---
+    # Plumbing
 
-    def log_message(self, format, *args):  # noqa: A002 - signature fixed by the base class
-        logger.debug("http " + format % args)  # request line only, never the body
+    def log_message(self, format, *args):  # noqa: A002
+        # The base class fixes this signature.
+        logger.debug("http " + format % args)  # Log the request line only, never the body.
 
     def _origin_allowed(self) -> bool:
         origin = self.headers.get("Origin")
         if origin is None:
-            return True  # not a browser (curl, tests)
+            return True  # The caller is not a browser (curl, tests).
         if not origin.startswith(EXTENSION_ORIGIN_PREFIX):
             return False
         return not settings.extension_id or origin == EXTENSION_ORIGIN_PREFIX + settings.extension_id
@@ -72,7 +76,7 @@ class _Handler(BaseHTTPRequestHandler):
         self._send_json(status, {"error": message, "kind": kind})
 
     def _guard(self) -> bool:
-        """False (after answering) when the request must not go further."""
+        """Return False, after the answer, when the request must stop here."""
         if not self._host_allowed():
             self._error(403, "bad Host header")
             return False
@@ -81,7 +85,7 @@ class _Handler(BaseHTTPRequestHandler):
             return False
         return True
 
-    # --- routes ---
+    # Routes
 
     def do_OPTIONS(self):  # CORS preflight
         if not self._guard():
@@ -122,7 +126,7 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if length > MAX_BODY_BYTES:
             self._error(413, f"body is larger than {MAX_BODY_BYTES // (1024 * 1024)} MB")
-            # The body is not read, so the connection cannot be reused safely.
+            # The service does not read the body. It therefore cannot reuse the connection safely.
             self.close_connection = True
             return
         try:
@@ -138,9 +142,11 @@ class _Handler(BaseHTTPRequestHandler):
                 self._explain(body)
         except EspnParseError as e:
             self._error(422, str(e), kind="parse")
-        except Exception:  # noqa: BLE001 - never crash the server on one request
-            # No exception text in the answer or the log line: a message could
-            # echo part of the body. The traceback goes to the log only.
+        except Exception:  # noqa: BLE001
+            # One request must never crash the server.
+            # The answer and the log line hold no exception text,
+            # because the text could echo part of the body.
+            # The traceback goes to the log only.
             logger.exception("request failed")
             self._error(500, "internal error, see the service log", kind="internal")
 
@@ -153,7 +159,7 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 def make_server(port: int | None = None) -> ThreadingHTTPServer:
-    """Port 0 picks a free port (used by tests)."""
+    """Create the server. Port 0 picks a free port (the tests use it)."""
     return ThreadingHTTPServer((HOST, settings.service_port if port is None else port), _Handler)
 
 

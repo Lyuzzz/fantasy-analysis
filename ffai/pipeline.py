@@ -1,19 +1,20 @@
 # ==============================================================================
-# pipeline.py - the one entry point for analysis:  raw ESPN JSON in, result out
+# pipeline.py: the one entry point for analysis. Raw ESPN JSON goes in. A result comes out.
 #
-# This is the seam between "where the data comes from" and "what we do with
-# it". Today the Chrome extension fetches the JSON with the user's own ESPN
-# login and POSTs it to service.py. Later the background `check` can fetch it
-# with EspnClient and call the very same analyze().
+# This module is the seam between "where the data comes from" and "what the program does with it".
+# Today the Chrome extension fetches the JSON with the ESPN login of the user.
+# The extension POSTs the JSON to service.py.
+# Later the background `check` can fetch the JSON with EspnClient and call the same analyze().
 #
-# analyze() is a pure function: no network, no database, no clock except `now`.
-# The result contains only JSON types, so the service can return it as is and
-# the AI step can read it back.
+# analyze() is a pure function.
+# It uses no network, no database and no clock, except `now`.
+# The result holds only JSON types.
+# The service can return it unchanged, and the AI step can read it.
 #
-# Done so far: parse, my team, lineup display, warnings (OUT / bye / empty slot).
-# Still to plug in (SPEC steps 3-4): lineup optimizer, win chance, free-agent
-# scoring. The result lists them under "pending" so no screen can pretend the
-# lineup is optimal when nobody checked.
+# Done so far: parse, the team of the user, lineup display, warnings (OUT, bye, empty slot).
+# Still to add (SPEC steps 3-4): lineup optimizer, win chance, free-agent scoring.
+# The result lists them under "pending".
+# No screen can then pretend that the lineup is optimal when nobody checked.
 # ==============================================================================
 from datetime import datetime, timezone
 
@@ -49,8 +50,8 @@ def analyze(payload: dict, now: datetime | None = None) -> dict:
     league = parse_league(payload["league"])
     team = find_my_team(league, str(payload.get("swid") or ""), str(payload.get("team_id") or ""))
 
-    # Without the NFL schedule we cannot tell bye weeks or kickoffs. Say so
-    # instead of silently reporting "no problems".
+    # Without the NFL schedule, the program cannot find bye weeks or kickoffs.
+    # The result says so. It does not report "no problems" in silence.
     week_kickoffs: dict[int, datetime] | None = None
     pro_names: dict[int, str] = {}
     if payload.get("pro_schedule"):
@@ -106,7 +107,7 @@ def _player_view(
 ) -> dict:
     p = entry.player
     kickoff = week_kickoffs.get(p.pro_team_id) if week_kickoffs is not None else None
-    # pro_team_id 0 means "no NFL team" (a free agent in the NFL): not a bye.
+    # pro_team_id 0 means "no NFL team". That is not a bye.
     on_bye = week_kickoffs is not None and p.pro_team_id != 0 and kickoff is None
     return {
         "id": p.id,
@@ -120,7 +121,7 @@ def _player_view(
         "season_avg": p.season_avg_actual,
         "bye": on_bye,
         "kickoff": kickoff.isoformat() if kickoff else None,
-        # lineupLocked comes from ESPN; the kickoff check covers a stale flag.
+        # ESPN sends lineupLocked. The kickoff check covers a stale flag.
         "started": bool(entry.locked or (kickoff is not None and now >= kickoff)),
     }
 
@@ -139,7 +140,7 @@ def _warnings(league: League, starters: list[RosterEntry], views: list[dict], ha
         elif v["injury"] == "QUESTIONABLE":
             out.append({"level": "info", "text": f"{who} is Questionable."})
 
-    # A starting slot with fewer players in it than the league requires.
+    # Find a starting slot that holds fewer players than the league requires.
     filled: dict[int, int] = {}
     for entry in starters:
         filled[entry.lineup_slot_id] = filled.get(entry.lineup_slot_id, 0) + 1

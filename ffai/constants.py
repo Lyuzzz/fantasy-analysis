@@ -1,12 +1,14 @@
 # ==============================================================================
-# constants.py - ESPN id tables (SPEC section 4, "ID tables")
+# constants.py: ESPN id tables (SPEC section 4, "ID tables")
 #
-# Copied from espn_api's football/constant.py, which is the reference for
-# these numbers. ESPN has not changed them in years, but an unknown id must
-# never crash a run: use the *_name helpers, which fall back to the number.
+# The tables come from football/constant.py in espn_api.
+# That file is the reference for these numbers.
+# ESPN has not changed them in years.
+# An unknown id must still never crash a run.
+# Use the *_name helpers. They fall back to the number.
 # ==============================================================================
 
-# lineupSlotId -> label
+# lineupSlotId to label
 SLOT_NAMES = {
     0: "QB", 1: "TQB", 2: "RB", 3: "RB/WR", 4: "WR", 5: "WR/TE", 6: "TE", 7: "OP",
     8: "DT", 9: "DE", 10: "LB", 11: "DL", 12: "CB", 13: "S", 14: "DB", 15: "DP",
@@ -16,10 +18,10 @@ SLOT_NAMES = {
 BENCH_SLOT = 20
 IR_SLOT = 21
 
-# Order used when showing the starting lineup.
+# The order that the panel uses to show the starting lineup.
 SLOT_DISPLAY_ORDER = [0, 2, 4, 6, 23, 3, 5, 7, 16, 17]
 
-# defaultPositionId -> label
+# defaultPositionId to label
 POSITION_NAMES = {1: "QB", 2: "RB", 3: "WR", 4: "TE", 5: "K", 16: "D/ST"}
 
 # Injury statuses that mean "will not play" (SPEC 5.1).

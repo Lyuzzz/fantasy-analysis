@@ -1,14 +1,16 @@
 # ==============================================================================
-# models.py - plain data classes shared by every module
+# models.py: plain data classes that every module shares
 #
-# parser.py builds these from ESPN JSON; lineup.py and analysis.py only ever
-# see these, never raw JSON. That keeps the maths testable with fake data.
-# All classes are frozen (immutable), like a Java record.
+# parser.py builds these classes from ESPN JSON.
+# lineup.py and analysis.py see only these classes, never raw JSON.
+# This keeps the maths testable with fake data.
+# All classes are frozen, so nobody can change an object after it exists.
+# A frozen class works like a Java record.
 # ==============================================================================
 from dataclasses import dataclass, field
 from datetime import datetime
 
-# Alert kinds. They are also the first part of the de-dup key (SPEC 6.1).
+# Alert kinds. A kind is also part of a de-dup key (SPEC 6.1).
 LINEUP = "lineup"
 INJURY = "injury"
 FREE_AGENT = "free_agent"
@@ -22,37 +24,37 @@ class Player:
     id: int
     name: str
     position_id: int  # defaultPositionId: 1 QB, 2 RB, 3 WR, 4 TE, 5 K, 16 D/ST
-    eligible_slots: tuple[int, ...]  # lineupSlotIds this player may fill
+    eligible_slots: tuple[int, ...]  # lineupSlotIds that the player can fill
     pro_team_id: int
     # ESPN injuryStatus: ACTIVE, QUESTIONABLE, DOUBTFUL, OUT, INJURY_RESERVE, SUSPENSION
     injury_status: str = "ACTIVE"
     percent_owned: float = 0.0
     percent_change: float = 0.0
-    # Points, in the league's scoring. None means ESPN sent no number.
-    projected_points: float | None = None  # this week, projected
-    actual_points: float | None = None  # this week, actual (game started)
-    season_avg_actual: float | None = None  # per game, this season so far
-    season_avg_projected: float | None = None  # ESPN's full-season projection per game
+    # Points use the scoring of the league. None means that ESPN sent no number.
+    projected_points: float | None = None  # projection for this week
+    actual_points: float | None = None  # actual points this week, after the game starts
+    season_avg_actual: float | None = None  # average per game this season
+    season_avg_projected: float | None = None  # ESPN projection per game for the full season
 
 
 @dataclass(frozen=True)
 class RosterEntry:
     player: Player
-    lineup_slot_id: int  # 20 = bench, 21 = IR, anything else = a starting slot
-    locked: bool = False  # the player's game has started: he cannot be moved
+    lineup_slot_id: int  # 20 is the bench. 21 is IR. Any other number is a starting slot.
+    locked: bool = False  # True after the game of the player starts. The user cannot move the player then.
 
 
 @dataclass(frozen=True)
 class FreeAgent:
     player: Player
-    status: str  # "FREEAGENT" (add now) or "WAIVERS" (needs a claim)
+    status: str  # "FREEAGENT": the user can add the player now. "WAIVERS": the user needs a claim.
 
 
 @dataclass(frozen=True)
 class Team:
     id: int
     name: str
-    owner_ids: tuple[str, ...]  # SWIDs, used to find "my" team
+    owner_ids: tuple[str, ...]  # SWIDs. The program uses them to find the team of the user.
     roster: tuple[RosterEntry, ...]
 
 
@@ -65,11 +67,11 @@ class Matchup:
 
 @dataclass(frozen=True)
 class ProGame:
-    """One NFL game. A team with no ProGame in a week is on bye."""
+    """One NFL game. A team that has no ProGame in a week is on a bye."""
 
     pro_team_id: int
     week: int
-    kickoff: datetime  # timezone-aware, UTC
+    kickoff: datetime  # UTC time with a time zone
 
 
 @dataclass(frozen=True)
@@ -78,7 +80,7 @@ class League:
     year: int
     name: str
     scoring_period: int  # NFL week
-    matchup_period: int  # NOT always equal to scoring_period (playoffs)
+    matchup_period: int  # Not always equal to scoring_period. The two differ in the playoffs.
     lineup_slot_counts: dict[int, int]
     teams: tuple[Team, ...]
     schedule: tuple[Matchup, ...] = ()
@@ -87,16 +89,16 @@ class League:
 
 @dataclass(frozen=True)
 class Alert:
-    """One message the user may need to act on."""
+    """One message that the user may need to act on."""
 
     kind: str
-    key: str  # de-dup key, see SPEC 6.1. Starts with the league id for league alerts
+    key: str  # De-dup key (SPEC 6.1). The key of a league alert starts with the league id.
     title: str
     body: str
-    urgent: bool = False  # urgent alerts ignore quiet hours
+    urgent: bool = False  # An urgent alert ignores the quiet hours.
     week: int | None = None
-    # Empty for account-level alerts (cookie expired, heartbeat). With several
-    # leagues the name is shown in the push title so you know which one it is.
+    # Empty for an alert about the account (cookie expired, heartbeat).
+    # The push title shows the league name, so the user knows which league the alert is about.
     league_id: str = ""
     league_name: str = ""
-    payload: dict = field(default_factory=dict)  # numbers for the AI step
+    payload: dict = field(default_factory=dict)  # numbers that the AI step reads

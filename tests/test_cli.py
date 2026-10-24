@@ -67,9 +67,9 @@ def test_run_keeps_looping_and_survives_a_failed_cycle(monkeypatch):
     def fake_sleep(seconds):
         sleeps.append(seconds)
         if len(sleeps) == 3:
-            raise KeyboardInterrupt  # how a user stops `run`
+            raise KeyboardInterrupt  # This is how a user stops `run`.
 
     monkeypatch.setattr(cli, "cmd_check", fake_check)
     monkeypatch.setattr(cli.time, "sleep", fake_sleep)
     assert main(["run"]) == EXIT_OK
-    assert len(sleeps) == 3  # the exception in cycle 2 did not end the loop
+    assert len(sleeps) == 3  # The exception in cycle 2 did not end the loop.

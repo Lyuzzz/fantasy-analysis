@@ -1,10 +1,10 @@
-# Background phase (paused): runs on the SAME VM as stock-ai, as its own Compose
-# project. The project name comes from the folder (~/fantasy-analysis), so the
-# two stacks never share networks or names. See DEPLOY.md.
+# Background phase (paused). The service runs on the SAME VM as stock-ai.
+# It is its own Compose project. The project name comes from the folder (~/fantasy-analysis).
+# The two stacks therefore never share networks or names. See DEPLOY.md.
 services:
   ffai:
     build: .
-    # stock-ai uses stock-ai-monitor and stock-ai-api, so no clash.
+    # stock-ai uses the names stock-ai-monitor and stock-ai-api, so the names do not clash.
     container_name: ffai-monitor
     restart: unless-stopped
     env_file: .env
@@ -12,12 +12,12 @@ services:
       - FFAI_DB_PATH=/data/ffai.db
       - TZ=America/Denver
     volumes:
-      # Own data folder inside this clone, separate from stock-ai's ./data.
+      # ffai has its own data folder inside its own clone. It is separate from ./data of stock-ai.
       - ./data:/data
-    # The VM has 1 GB of RAM and stock-ai is already on it. A leak here must
-    # not starve stock-ai.
+    # The VM has 1 GB of RAM, and stock-ai already runs on it.
+    # A memory leak in ffai must not starve stock-ai.
     mem_limit: 256m
-    # No ports: 8000 is stock-ai's API, and ffai only makes outbound requests.
+    # No ports. Port 8000 belongs to the API of stock-ai, and ffai only makes outbound requests.
     logging:
       driver: json-file
       options:

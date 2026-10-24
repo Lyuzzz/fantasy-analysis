@@ -31,7 +31,7 @@ def league(raw_league):
     return parse_league(raw_league)
 
 
-# --- league ---
+# League
 
 
 def test_league_basics(league):
@@ -44,7 +44,7 @@ def test_league_basics(league):
 
 
 def test_slot_counts_become_int_keys(league):
-    # ESPN sends them as string JSON keys.
+    # ESPN sends them as JSON keys, and a JSON key is a string.
     assert league.lineup_slot_counts[0] == 1  # QB
     assert league.lineup_slot_counts[23] == 1  # FLEX
     assert all(isinstance(k, int) for k in league.lineup_slot_counts)
@@ -101,7 +101,7 @@ def test_stats_of_another_season_are_ignored(raw_league):
     assert parse_league(raw_league).teams[0].roster[0].player.projected_points is None
 
 
-# --- ESPN format problems must be loud and readable ---
+# An ESPN format problem must be loud and readable
 
 
 def test_missing_key_names_what_is_missing(raw_league):
@@ -121,7 +121,7 @@ def test_not_a_dict_is_a_parse_error():
         parse_league([])
 
 
-# --- my team ---
+# The team of the user
 
 
 def test_my_team_is_found_by_swid(league):
@@ -146,7 +146,7 @@ def test_unknown_swid_is_an_error(league):
         find_my_team(league, "{NOT-MINE}")
 
 
-# --- NFL schedule ---
+# NFL schedule
 
 
 def test_every_team_has_a_game_or_a_bye_per_week():
@@ -154,8 +154,9 @@ def test_every_team_has_a_game_or_a_bye_per_week():
     assert games
     assert all(g.kickoff.tzinfo == timezone.utc for g in games)
     in_week_1 = {g.pro_team_id for g in games if g.week == 1}
-    # 32 real teams (id 0 is "no team" in ESPN's table); a few are on bye in week 1 or play
-    # outside the fixture window, so just check the order of magnitude and uniqueness.
+    # The NFL has 32 teams. ESPN uses id 0 for "no team".
+    # A few teams are on a bye in week 1, or play outside the fixture window.
+    # The test therefore checks the order of magnitude only.
     assert 20 <= len(in_week_1) <= 32
 
 
@@ -166,7 +167,8 @@ def test_each_game_is_listed_once_per_team():
 
 
 def test_bye_week_means_no_game():
-    # In 2024 no team has a bye before week 5, so make one: drop team 12's week 2.
+    # In 2024 no team has a bye before week 5.
+    # The test makes a bye: it drops week 2 of team 12.
     raw = _load("pro_schedule.json")
     team = next(t for t in raw["settings"]["proTeams"] if t["id"] == 12)
     assert "2" in team["proGamesByScoringPeriod"]
@@ -175,7 +177,7 @@ def test_bye_week_means_no_game():
     assert weeks == {1, 3, 4}
 
 
-# --- free agents ---
+# Free agents
 
 
 def test_free_agents(league):
