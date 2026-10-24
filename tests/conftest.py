@@ -1,6 +1,6 @@
-# Runs before any test module is imported. Two jobs:
-#   1. put the repo root on sys.path so `import ffai` works with a bare `pytest`
-#   2. point the database at a temp file so no test touches a real ffai.db
+# pytest runs this file before it imports any test module. The file does two jobs:
+#   1. It puts the repo root on sys.path, so `import ffai` works with a bare `pytest`.
+#   2. It points the database at a temporary file, so no test touches a real ffai.db.
 import os
 import sys
 import tempfile

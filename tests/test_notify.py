@@ -65,7 +65,7 @@ def test_urgent_flag_is_passed_to_the_channel():
     assert ch.sent[0][2] is True
 
 
-# --- EmailChannel (SMTP is faked, nothing touches the network) ---
+# EmailChannel. The tests fake SMTP, so nothing touches the network.
 
 
 class FakeSMTP:
@@ -113,7 +113,7 @@ def test_email_is_sent_with_login_and_subject_prefix(email):
 def test_email_failure_returns_false_and_does_not_raise(email):
     FakeSMTP.fail = True
     assert email.send("Start X", "body") is False
-    assert len(FakeSMTP.instances) == 3  # three tries before giving up
+    assert len(FakeSMTP.instances) == 3  # The code tries three times before it gives up.
 
 
 def test_email_channel_needs_all_three_settings(email):

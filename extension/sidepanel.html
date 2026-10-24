@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ffai</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <header>
+    <h1>ffai</h1>
+    <span id="service-status" class="pill">service: checking</span>
+  </header>
+
+  <section class="card">
+    <label class="field">League
+      <select id="league-select"></select>
+    </label>
+    <div class="row">
+      <input id="league-input" placeholder="League id" inputmode="numeric" autocomplete="off">
+      <button id="add-league" type="button">Add</button>
+      <button id="use-tab" type="button" title="Read the league id from the ESPN tab you are looking at">From tab</button>
+      <button id="remove-league" type="button">Remove</button>
+    </div>
+    <div class="row">
+      <label class="field">Season <input id="season" type="number" min="2000" max="2100"></label>
+      <label class="field">Team id <input id="team-id" placeholder="auto" inputmode="numeric" autocomplete="off"></label>
+    </div>
+    <button id="analyze" class="primary" type="button">Analyze</button>
+    <p id="status" role="status"></p>
+  </section>
+
+  <section id="results"></section>
+
+  <div id="explain-bar" hidden>
+    <button id="explain" type="button">Explain with AI</button>
+    <span id="explain-hint" class="muted"></span>
+  </div>
+
+  <details class="card" id="ai-box">
+    <summary>AI settings</summary>
+    <label class="field">Provider
+      <select id="ai-provider">
+        <option value="anthropic">Anthropic</option>
+        <option value="openai">OpenAI-compatible</option>
+      </select>
+    </label>
+    <label class="field">API key
+      <input id="ai-key" type="password" autocomplete="off" spellcheck="false">
+    </label>
+    <label class="field">Model
+      <input id="ai-model" list="model-presets" autocomplete="off" spellcheck="false">
+      <datalist id="model-presets"></datalist>
+    </label>
+    <label class="field" id="ai-base-row" hidden>Base URL
+      <input id="ai-base" placeholder="https://api.deepseek.com/v1" autocomplete="off" spellcheck="false">
+    </label>
+    <p class="muted">The key is saved in this browser profile. Chrome does not encrypt it. It is sent only to the local ffai service, which passes it to the AI provider and never stores it. Use a key with a spending limit.</p>
+  </details>
+
+  <details class="card">
+    <summary>Advanced</summary>
+    <label class="field">Local service address
+      <input id="service-base" autocomplete="off" spellcheck="false">
+    </label>
+  </details>
+
+  <script type="module" src="sidepanel.js"></script>
+</body>
+</html>

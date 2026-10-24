@@ -1,4 +1,5 @@
 python-dotenv==1.2.2
 loguru==0.7.3
-# ESPN calls and the ntfy / Telegram / Discord channels. Always used with a timeout.
+# The program uses requests for the AI calls, and later for the ESPN calls and for the ntfy, Telegram and Discord channels.
+# Every call has a timeout.
 requests==2.34.2

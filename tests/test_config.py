@@ -2,8 +2,9 @@ import pytest
 
 from ffai.config import ConfigError, Settings
 
-# Every variable a test below reads. A developer's real .env is loaded at
-# import, so each test clears what it asserts on instead of trusting the shell.
+# Every variable that a test below reads.
+# The program loads the real .env of a developer at import.
+# Each test therefore clears what it asserts on. It does not trust the shell.
 _CHANNEL_VARS = [
     "EMAIL_FROM", "EMAIL_PASSWORD", "EMAIL_TO", "NTFY_TOPIC",
     "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "DISCORD_WEBHOOK_URL",
@@ -33,7 +34,7 @@ def test_empty_value_counts_as_not_set(monkeypatch):
 def test_a_channel_needs_all_of_its_settings(monkeypatch):
     _clear(monkeypatch, _CHANNEL_VARS)
     monkeypatch.setenv("EMAIL_FROM", "a@example.com")
-    assert Settings().configured_channels() == []  # password and recipient missing
+    assert Settings().configured_channels() == []  # The password and the recipient are missing.
     monkeypatch.setenv("EMAIL_PASSWORD", "app-password")
     monkeypatch.setenv("EMAIL_TO", "b@example.com")
     monkeypatch.setenv("NTFY_TOPIC", "some-long-random-topic")
@@ -78,7 +79,7 @@ def test_team_ids_are_read_per_league(monkeypatch):
     monkeypatch.setenv("ESPN_TEAM_IDS", "1669256142:16")
     s = Settings()
     assert s.team_id_for("1669256142") == "16"
-    assert s.team_id_for("2222222") == ""  # detect from SWID
+    assert s.team_id_for("2222222") == ""  # The program detects the team from the SWID.
 
 
 def test_team_ids_must_belong_to_a_configured_league(monkeypatch):

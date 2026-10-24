@@ -1,14 +1,16 @@
 # ==============================================================================
-# notify.py - push channels (SPEC section 8)
+# notify.py: push channels (SPEC section 8)
 #
-# stock-ai only has an email notifier and no shared interface. Here every
-# channel implements `Channel`, and `Notifier` sends to all configured ones.
+# stock-ai has only an email notifier and no shared interface.
+# Here every channel implements `Channel`.
+# `Notifier` sends to all configured channels.
 #
-# Failure rules (copied from stock-ai's EmailNotifier):
-#   * a channel never raises: it logs and returns False
-#   * one channel failing must not stop the others
-#   * Notifier.send returns True if ANY channel delivered. Only then does the
-#     caller call store.mark_sent. If all fail, the alert is retried next check.
+# Failure rules (copied from EmailNotifier in stock-ai):
+#   * A channel never raises. It logs the problem and returns False.
+#   * One failing channel must not stop the other channels.
+#   * Notifier.send returns True when ANY channel delivered the message.
+#     Only then does the caller call store.mark_sent.
+#     When all channels fail, the next check sends the alert again.
 # ==============================================================================
 import smtplib
 from abc import ABC, abstractmethod
@@ -26,11 +28,11 @@ class Channel(ABC):
 
     @abstractmethod
     def is_configured(self) -> bool:
-        """True if every setting this channel needs is present."""
+        """True when the channel has every setting that it needs."""
 
     @abstractmethod
     def send(self, title: str, body: str, urgent: bool = False) -> bool:
-        """Deliver one message. Return False on failure, never raise."""
+        """Deliver one message. Return False on failure. Never raise."""
 
 
 class EmailChannel(Channel):
@@ -64,17 +66,19 @@ class EmailChannel(Channel):
             retry(_do_send, label=f"email '{title}'")
             logger.info(f"Email sent to {self.email_to}: {title}")
             return True
-        except Exception as e:  # noqa: BLE001 - a failed email must not crash the run
+        except Exception as e:  # noqa: BLE001
+            # A failed email must not crash the run.
             logger.error(f"Failed to send email after retries - {e}")
             return False
 
 
-# --- channels still to build (SPEC section 8). They report their config state
-# --- so `configured_channels` is accurate, but sending is not written yet. ---
+# The channels below are not built yet (SPEC section 8).
+# They report their configuration state, so `configured_channels` is correct.
+# Their send method raises NotImplementedError.
 
 
 class NtfyChannel(Channel):
-    """TODO: publish as JSON so Chinese text renders correctly (SPEC 8)."""
+    """TODO: publish as JSON, so Chinese text displays correctly (SPEC 8)."""
 
     name = "ntfy"
 
@@ -112,7 +116,7 @@ def build_channels() -> list[Channel]:
 
 class Notifier:
     def __init__(self, channels: list[Channel] | None = None):
-        # `channels` is a test seam, like stock-ai's `translate_call`.
+        # `channels` lets a test give fake channels. stock-ai does the same with `translate_call`.
         self.channels = build_channels() if channels is None else channels
 
     def send(self, alert: Alert) -> bool:
@@ -130,6 +134,7 @@ class Notifier:
                     delivered = True
                 else:
                     logger.warning(f"{channel.name} did not deliver: {title}")
-            except Exception:  # noqa: BLE001 - isolate channels from each other
+            except Exception:  # noqa: BLE001
+                # A failure in one channel must not stop the other channels.
                 logger.exception(f"{channel.name} raised while sending: {title}")
         return delivered
