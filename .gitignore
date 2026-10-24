@@ -19,6 +19,9 @@ venv/
 # Personal Claude Code rules. stock-ai ignores this file too.
 CLAUDE.md
 
+# Local Claude Code settings. stock-ai ignores this folder too.
+.claude/
+
 # OS and editor
 .DS_Store
 .idea/
