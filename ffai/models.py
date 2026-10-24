@@ -28,12 +28,24 @@ class Player:
     injury_status: str = "ACTIVE"
     percent_owned: float = 0.0
     percent_change: float = 0.0
+    # Points, in the league's scoring. None means ESPN sent no number.
+    projected_points: float | None = None  # this week, projected
+    actual_points: float | None = None  # this week, actual (game started)
+    season_avg_actual: float | None = None  # per game, this season so far
+    season_avg_projected: float | None = None  # ESPN's full-season projection per game
 
 
 @dataclass(frozen=True)
 class RosterEntry:
     player: Player
     lineup_slot_id: int  # 20 = bench, 21 = IR, anything else = a starting slot
+    locked: bool = False  # the player's game has started: he cannot be moved
+
+
+@dataclass(frozen=True)
+class FreeAgent:
+    player: Player
+    status: str  # "FREEAGENT" (add now) or "WAIVERS" (needs a claim)
 
 
 @dataclass(frozen=True)
@@ -64,6 +76,7 @@ class ProGame:
 class League:
     id: str
     year: int
+    name: str
     scoring_period: int  # NFL week
     matchup_period: int  # NOT always equal to scoring_period (playoffs)
     lineup_slot_counts: dict[int, int]

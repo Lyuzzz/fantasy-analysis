@@ -19,8 +19,10 @@ jobs:
       # Syntax errors and undefined names only, same rule set as stock-ai.
       - run: ruff check --select E9,F63,F7,F82 ffai tests
       # Import every module once: catches a broken import that no test touches.
-      - run: python -c "import ffai.cli, ffai.espn_client, ffai.parser, ffai.lineup, ffai.analysis, ffai.alerts, ffai.scheduler, ffai.ai"
+      - run: python -c "import ffai.cli, ffai.espn_client, ffai.parser, ffai.lineup, ffai.analysis, ffai.alerts, ffai.scheduler, ffai.ai, ffai.pipeline, ffai.service, ffai.constants"
       - run: pytest tests -q
+      # The extension has no build step; at least make sure the manifest is valid JSON.
+      - run: python -c "import json; json.load(open('extension/manifest.json'))"
 
   docker-build:
     runs-on: ubuntu-latest

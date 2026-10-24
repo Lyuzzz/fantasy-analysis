@@ -4,10 +4,42 @@
 
 ---
 
+## 0. Architecture: Chrome extension + local service first, background later
+
+**Current phase.** The first front end is a **Chrome extension** (side panel). It runs analysis **only when I press a button**. There is no always-on background run and no email for now. The background part comes back after I understand how ESPN's login cookie behaves (it expires, and handling it is awkward).
+
+```
+Chrome extension (side panel)                 local service (Python, 127.0.0.1:8765)
+  fetch ESPN with my browser login  ──raw JSON──>  ffai.pipeline.analyze(payload)
+  render the result                 <──result────      parse -> my team -> checks (lineup, win%, free agents later)
+                                                               ^
+future background `check` (cookie via EspnClient) ─────────────┘  same analyze()
+```
+
+- **No cookie handling in the extension.** I am already logged in to ESPN in Chrome. The extension (host permission for `*.espn.com`) calls ESPN's API and the browser attaches the cookies. `espn_s2` is never read, stored or sent. The one value it reads is `SWID` (it identifies me and finds my team; it is not a login credential). If ESPN answers 401, the panel says "log in to ESPN".
+- **One analysis codebase.** `ffai/pipeline.py: analyze(payload) -> dict` takes raw ESPN JSON and returns JSON-friendly data. The extension feeds it today; the background `check` can feed it later with `EspnClient`. Nothing in `lineup.py` / `analysis.py` knows where the data came from.
+- **Analysis runs on a button press.** Opening the panel makes no ESPN request (only a local ping to see if the service is up). "Explain with AI" is a second, separate button, so LLM cost is always my choice.
+- **AI settings live in the panel** (provider, API key, model, base URL). The key is stored in `chrome.storage.local` (not encrypted by Chrome), sent only to `127.0.0.1`, and from there to the AI provider. The service never stores or logs it. `AI_*` in `.env` is only a fallback.
+- **The background part will run on the same VM as stock-ai**: its own repo and its own Docker Compose project next to stock-ai's, not inside stock-ai's compose file or process (section 13).
+
+### Local service API (`python -m ffai serve`, loopback only)
+
+| Route | Request body | Answer |
+|---|---|---|
+| `GET /health` | - | `{"ok": true}` |
+| `POST /analyze` | `{"league": <ESPN league JSON, views mSettings+mTeam+mRoster+mMatchupScore>, "pro_schedule": <proTeamSchedules_wl JSON>, "free_agents": <kona_player_info JSON, optional>, "swid": "{...}", "team_id": "16" (optional)}` | the analysis result (below) |
+| `POST /explain` | `{"result": <an /analyze result>, "ai": {"provider": "anthropic"\|"openai", "api_key", "model", "base_url"}}` | `{"text", "source": "ai"\|"template", "error"}` |
+
+Errors: `422` with `kind: "parse"` for an ESPN format problem or an unknown SWID, `400` bad JSON, `413` body over 16 MB, `415` wrong content type, `403` wrong Host or Origin, `500` internal (details only in the service log). Only `chrome-extension://` origins are accepted (pin one with `EXTENSION_ID`).
+
+**Analysis result** (`/analyze`): `league {id, name, year, week}`, `team {id, name}`, `starters[]` / `bench[]` / `ir[]` (each player: `name, position, pro_team, slot, injury, projected, actual, season_avg, bye, kickoff, started`), `warnings[] {level: alert|warning|info, text}`, `free_agents[]` (top by ownership for now), `pending[]` (checks not written yet: best lineup, win probability, free-agent scoring). The panel must show `pending`, so nobody mistakes "no warnings" for "lineup is optimal".
+
+---
+
 ## 1. Background and goal
 
 - I play NFL fantasy football on ESPN in **two private leagues** (same ESPN account), 2026 season. The program must handle one or more leagues.
-- I want a **lightweight background program** running on my Google Cloud VM. It checks the league on a schedule and **only notifies me when I need to act**. No noise otherwise.
+- Later (background phase, see section 0) I want a **lightweight background program** running on my Google Cloud VM. It checks the league on a schedule and **only notifies me when I need to act**. No noise otherwise. Sections 6, 7 (background use), 8 and 13 describe it and are **paused** until the extension works.
 - Same design as my **stock-ai** project: scheduled job -> free "gatekeeper" check (continue only if something new happened) -> LLM explanation -> push notification. Reuse stock-ai's code structure and its config, logging and notifier conventions. **Read its code first**: `/Users/rick/Desktop/Projects/stock-ai-`.
 - I come from Java and I'm not fluent in Python. Explain your design choices in some detail when you talk to me (reply in Chinese). Code comments must be in English.
 - This is an **advisory tool**. It only reads from ESPN. It never changes my lineup, never adds/drops players, never proposes trades on its own.
@@ -27,7 +59,7 @@
 - Weekly matchup preview: opponent, projected score, win probability. Also an "all good, X% win probability" message before Sunday kickoff.
 - FAAB bid suggestions (if the league uses FAAB).
 
-No web UI and no multi-user support.
+No multi-user support. The only UI is the Chrome side panel (section 0).
 
 ---
 
@@ -134,6 +166,8 @@ A single check should issue roughly 6-10 requests. Keep the request rate low.
 
 ## 6. Alerts, de-duplication, cadence and health
 
+> **Background phase - paused.** Not used by the extension. Kept so the background part can be built later on top of `pipeline.analyze`.
+
 ### 6.1 Check flow (the "gatekeeper")
 Fetch data -> analyze -> build alerts -> compare with alerts already stored in SQLite -> **only new alerts** go to the AI and the notifier.
 
@@ -167,7 +201,9 @@ With several leagues, every league alert key starts with the league id. Health a
 
 ## 7. AI (optional, my own key)
 
-- Call it only when there are new alerts. Without a key, use template text.
+- **Extension (now):** called only when I press "Explain with AI". The key, provider and model come from the panel with each request (`/explain`); `AI_*` in `.env` is only a fallback. Implemented in `ffai/ai.py`. Only the basic request fields are sent (model, max_tokens, system, messages), and for OpenAI-compatible services no `max_tokens`, because newer OpenAI models renamed it.
+- **Background (later):** call it only when there are new alerts.
+- Without a key, use template text.
 - Support two interfaces, both via plain HTTP, no SDK:
   - **Anthropic Messages API**: `POST https://api.anthropic.com/v1/messages`, headers `x-api-key` and `anthropic-version: 2023-06-01`. Default model `claude-sonnet-5-5`. Newer models may reject `temperature` / `top_p`, so do not send them. `output_config.effort = "low"` can save cost. **Check the official docs for exact parameters before relying on this.**
   - **OpenAI-compatible** (OpenAI / DeepSeek / Gemini / OpenRouter ...): `POST {AI_BASE_URL}/chat/completions`, header `Authorization: Bearer`.
@@ -181,6 +217,8 @@ With several leagues, every league alert key starts with the league id. Health a
 
 ## 8. Notifications
 
+> **Background phase - paused.** The extension shows results in the panel; nothing is pushed or emailed for now.
+
 - Channels: send to every channel that is configured in `.env`; several can be active at once.
   - Email: Gmail SMTP with an app password, same as stock-ai
   - ntfy: phone push. Publish as JSON so Chinese text renders correctly; use a long random string as the topic name
@@ -192,10 +230,14 @@ With several leagues, every league alert key starts with the league id. Health a
 
 ## 9. Configuration (.env)
 
+Extension phase: only the service settings below matter, and `.env` is optional (the extension sends the league ids, the SWID and the AI settings with each request). The ESPN cookie and notification settings are for the background phase.
+
 ```
-ESPN_LEAGUE_IDS=         # one or more, comma separated
+SERVICE_PORT=8765        # local service for the extension (always bound to 127.0.0.1)
+EXTENSION_ID=            # optional: accept only this extension id
+ESPN_LEAGUE_IDS=         # background phase: one or more, comma separated
 ESPN_YEAR=2026
-ESPN_S2=                 # shared by every league: the cookies belong to the account
+ESPN_S2=                 # background phase only; shared by every league (the cookies belong to the account)
 ESPN_SWID=
 ESPN_TEAM_IDS=           # optional, per league ("1669256142:16"); auto-detected from SWID if empty
 TIMEZONE=America/Denver
@@ -226,6 +268,7 @@ HEALTHCHECK_URL=         # optional
 | Command | Purpose |
 |---|---|
 | `python -m ffai check [--dry-run]` | Run one check (decides itself whether it is time to run, see 6.2). `--dry-run` prints messages only: no push, nothing recorded, and it ignores the schedule gate |
+| `python -m ffai serve [--port]` | Run the local service the Chrome extension talks to (127.0.0.1 only, default port 8765) |
 | `python -m ffai run` | Loop forever, calling `check` every `CHECK_INTERVAL_SECONDS`. This is the Docker `CMD` |
 | `python -m ffai report` | Print the full analysis to the terminal: lineup, win probability, free agents, whole-league matchups |
 | `python -m ffai teams` | List all teams and their IDs |
@@ -251,8 +294,12 @@ fantasy-analysis/
 │   ├── store.py         # SQLite
 │   ├── ai.py            # Anthropic / OpenAI-compatible
 │   ├── notify.py        # email / ntfy / telegram / discord
-│   ├── scheduler.py     # cadence (from NFL schedule) + quiet hours
+│   ├── scheduler.py     # cadence (from NFL schedule) + quiet hours (background phase)
+│   ├── constants.py     # ESPN slot / position id tables
+│   ├── pipeline.py      # analyze(payload): the one entry point for analysis
+│   ├── service.py       # local HTTP service for the extension
 │   └── cli.py
+├── extension/           # Chrome MV3 side panel (plain JS, no build step)
 ├── tests/
 ├── .github/workflows/ci.yml
 ├── Dockerfile, docker-compose.yml, DEPLOY.md
@@ -272,24 +319,28 @@ fantasy-analysis/
 
 ---
 
-## 13. Deployment (GCP Compute Engine VM)
+## 13. Deployment (background phase: the same GCP VM as stock-ai)
 
-- **Docker Compose**, same as stock-ai (see `DEPLOY.md`). The container runs `python -m ffai run`; `check` itself decides whether it is time to do work. State lives in `./data/ffai.db` (volume). Logs: `docker compose logs -f`. `restart: unless-stopped` brings it back after a crash.
-- The program only makes outbound requests, so no firewall ports need to be opened.
-- **Deploy early**: as soon as step 5 below works, deploy it and let it run through at least one real Sunday. Lineup alerts depend on real-game behavior (inactive lists, ESPN status lag) that local dry-runs cannot show.
+> **Paused.** The extension runs on my laptop (`python -m ffai serve`). Nothing is deployed in the current phase. The deploy files are prepared so the background phase later is "clone and `up -d`".
+
+- **Same server as stock-ai.** stock-ai runs on one e2-micro VM (name `stock-ai`, zone `us-west1-a`, 1 GB RAM plus swap) as a Docker Compose project cloned at `~/stock-ai-` (containers `stock-ai-monitor` and `stock-ai-api`, the API published on `127.0.0.1:8000` only). ffai goes on that VM as **its own repo and its own Compose project** (`~/fantasy-analysis`, container `ffai-monitor`). It is not part of stock-ai's compose file or process, so a crash or out-of-memory in one cannot take the other down. We never edit stock-ai's repo.
+- **Docker Compose**, same as stock-ai (see `DEPLOY.md`). The container runs `python -m ffai run`; `check` itself decides whether it is time to do work. State lives in `./data/ffai.db` (volume). Logs: `docker compose logs -f`. `restart: unless-stopped` brings it back after a crash. `mem_limit: 256m` protects stock-ai on the 1 GB VM.
+- The program only makes outbound requests. It publishes **no ports** (8000 is stock-ai's), and no firewall port needs to be opened.
+- **Later option (not built):** run `ffai serve` on the VM bound to `127.0.0.1` and reach it over an SSH tunnel, like stock-ai's dashboard. The extension would then not need a local Python process.
+- **Deploy early** once the background part exists: let it run through at least one real Sunday. Lineup alerts depend on real-game behavior (inactive lists, ESPN status lag) that local dry-runs cannot show.
 
 ---
 
 ## 14. Build order
 
-Each step must run on its own before starting the next:
+Each step must run on its own before starting the next. Steps marked (done) exist in the code.
 
-1. Read stock-ai's code and follow its structure.
-2. ESPN client and parser; get `teams` and `report` working on real data.
-3. Lineup optimizer + win probability.
-4. Free agents.
-5. De-dup + notifications + scheduler + health alerts. **Then deploy (section 13).**
-6. AI explanations.
+1. (done) Read stock-ai's code and follow its structure; scaffold the package.
+2. (done) Parser and `pipeline.analyze` against real espn-api fixtures; local service (`serve`); Chrome side panel with Analyze and Explain-with-AI buttons.
+3. **Spike on my real ESPN login:** load the unpacked extension, click Analyze, and confirm ESPN's API accepts the browser's cookies. If ESPN answers 401, switch to a content script on `fantasy.espn.com` before building more.
+4. Lineup optimizer + win probability (plug into `pipeline.analyze`, show in the panel).
+5. Free agents (same).
+6. Background phase, after I understand the cookie behavior: `EspnClient` + cookie feeding the same `analyze`, de-dup + notifications + scheduler + health alerts, then deploy on the stock-ai VM (section 13).
 7. v2: trades, weekly preview, FAAB suggestions.
 
 ---

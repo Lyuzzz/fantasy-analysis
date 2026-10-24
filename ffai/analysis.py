@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from ffai.lineup import LineupResult
-from ffai.models import Player, ProGame, Team
+from ffai.models import FreeAgent, Player, ProGame, Team
 
 
 @dataclass(frozen=True)
@@ -45,7 +45,7 @@ def team_value(team: Team) -> float:
 
 def evaluate_free_agents(
     team: Team,
-    free_agents: Sequence[Player],
+    free_agents: Sequence[FreeAgent],
     current: LineupResult,
 ) -> list[FreeAgentMove]:
     """Try every free agent against every droppable player; keep moves over the thresholds."""

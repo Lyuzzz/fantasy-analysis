@@ -138,6 +138,11 @@ class Settings:
         self.discord_webhook_url = _str("DISCORD_WEBHOOK_URL")
         self.healthcheck_url = _str("HEALTHCHECK_URL")
 
+        # --- local service for the Chrome extension (bound to 127.0.0.1 only) ---
+        self.service_port = _int("SERVICE_PORT", 8765)
+        # Optional: accept only this extension id. Empty = any chrome-extension:// origin.
+        self.extension_id = _str("EXTENSION_ID")
+
         # --- storage ---
         # FFAI_DB_PATH is overridden by Docker (/data/ffai.db) and by tests.
         self.db_path = Path(_str("FFAI_DB_PATH") or ROOT / "ffai.db")
