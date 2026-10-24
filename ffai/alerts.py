@@ -7,26 +7,32 @@
 # ==============================================================================
 from ffai.analysis import FreeAgentMove
 from ffai.lineup import LineupMove
-from ffai.models import Alert
+from ffai.models import Alert, League
+
+# With several leagues every league alert key starts with the league id, so the
+# same player in two leagues never shares a key. Set Alert.league_id and
+# Alert.league_name too (the name is shown in the push title).
 
 
-def lineup_alert(week: int, moves: tuple[LineupMove, ...], win_before: float, win_after: float) -> Alert:
-    """Key: lineup:<week>:<the specific swaps>."""
+def lineup_alert(
+    league: League, moves: tuple[LineupMove, ...], win_before: float, win_after: float
+) -> Alert:
+    """Key: <league>:lineup:<week>:<the specific swaps>."""
     raise NotImplementedError("SPEC section 6.1")
 
 
-def injury_alert(week: int, player_id: int, new_status: str, player_name: str) -> Alert:
-    """Key: injury:<player>:<new status>:<week>."""
+def injury_alert(league: League, player_id: int, new_status: str, player_name: str) -> Alert:
+    """Key: <league>:injury:<player>:<new status>:<week>."""
     raise NotImplementedError("SPEC section 6.1")
 
 
-def free_agent_alert(week: int, move: FreeAgentMove) -> Alert:
-    """Key: free_agent:<week>:<player>."""
+def free_agent_alert(league: League, move: FreeAgentMove) -> Alert:
+    """Key: <league>:free_agent:<week>:<player>."""
     raise NotImplementedError("SPEC section 6.1")
 
 
 def cookie_expired_alert() -> Alert:
-    """Sent once, not on every run (use store.get_kv / set_kv)."""
+    """Account-level (no league). Sent once, not on every run (use store.get_kv / set_kv)."""
     raise NotImplementedError("SPEC section 6.3")
 
 

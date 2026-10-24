@@ -27,5 +27,6 @@ def parse_free_agents(raw: dict) -> tuple[Player, ...]:
 
 
 def find_my_team(league: League, swid: str, team_id: str = "") -> Team:
-    """The team whose owners include my SWID, or the explicit ESPN_TEAM_ID."""
+    """The team whose owners include my SWID, or the explicit team id for this
+    league (settings.team_id_for(league.id))."""
     raise NotImplementedError("SPEC section 4: my team")

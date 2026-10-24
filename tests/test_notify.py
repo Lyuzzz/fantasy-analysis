@@ -47,6 +47,18 @@ def test_a_raising_channel_does_not_stop_the_others():
     assert len(good.sent) == 1
 
 
+def test_league_name_is_added_to_the_title():
+    ch = FakeChannel("a")
+    Notifier(channels=[ch]).send(Alert(kind=LINEUP, key="k", title="Start X", body="B", league_name="Sunday League"))
+    assert ch.sent[0][0] == "[Sunday League] Start X"
+
+
+def test_account_level_alert_has_no_league_prefix():
+    ch = FakeChannel("a")
+    Notifier(channels=[ch]).send(_alert())
+    assert ch.sent[0][0] == "T"
+
+
 def test_urgent_flag_is_passed_to_the_channel():
     ch = FakeChannel("a")
     Notifier(channels=[ch]).send(_alert(urgent=True))

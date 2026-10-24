@@ -6,7 +6,7 @@
 
 ## 1. Background and goal
 
-- I play NFL fantasy football on ESPN in a **private league**, 2026 season.
+- I play NFL fantasy football on ESPN in **two private leagues** (same ESPN account), 2026 season. The program must handle one or more leagues.
 - I want a **lightweight background program** running on my Google Cloud VM. It checks the league on a schedule and **only notifies me when I need to act**. No noise otherwise.
 - Same design as my **stock-ai** project: scheduled job -> free "gatekeeper" check (continue only if something new happened) -> LLM explanation -> push notification. Reuse stock-ai's code structure and its config, logging and notifier conventions. **Read its code first**: `/Users/rick/Desktop/Projects/stock-ai-`.
 - I come from Java and I'm not fluent in Python. Explain your design choices in some detail when you talk to me (reply in Chinese). Code comments must be in English.
@@ -66,7 +66,9 @@ A private league needs two cookies: `espn_s2` and `SWID`. A 401 means the cookie
 - `defaultPositionId`: 1 QB, 2 RB, 3 WR, 4 TE, 5 K, 16 D/ST
 - `proTeamId` -> team abbreviation: `PRO_TEAM_MAP` from espn_api.
 
-**My team**: the team whose `owners` contains my SWID, or set `ESPN_TEAM_ID` manually.
+**Several leagues**: `ESPN_LEAGUE_IDS` holds one or more leagues from the same ESPN account. The cookies are shared. Each league is fetched and analyzed on its own, one `EspnClient` per league. The NFL schedule is the same for every league, so fetch it once per check. Push titles carry the league name.
+
+**My team** (per league): the team whose `owners` contains my SWID, or set it in `ESPN_TEAM_IDS` (`league_id:team_id`) when detection fails.
 
 **Edge cases to handle in the parser**
 - `scoringPeriodId` (NFL week) and `currentMatchupPeriod` are not always 1:1 (multi-week playoff matchups). Never assume they are equal.
@@ -137,13 +139,15 @@ Fetch data -> analyze -> build alerts -> compare with alerts already stored in S
 
 **De-dup keys**
 
+With several leagues, every league alert key starts with the league id. Health alerts about the account (cookie expired, heartbeat) have no league.
+
 | Alert | Key |
 |---|---|
-| Lineup | week + the specific swap |
-| Injury | player + new status + week |
-| Free agent | week + player |
-| Trade (v2) | week |
-| Preview (v2) | week |
+| Lineup | league + week + the specific swap |
+| Injury | league + player + new status + week |
+| Free agent | league + week + player |
+| Trade (v2) | league + week |
+| Preview (v2) | league + week |
 
 ### 6.2 Cadence and quiet hours
 - `check` is the single entry point. It decides by itself whether it should run now (`scheduler.should_run_now()`), so the `run` loop (the Docker `CMD`) can simply call it every `CHECK_INTERVAL_SECONDS` (default 600).
@@ -189,11 +193,11 @@ Fetch data -> analyze -> build alerts -> compare with alerts already stored in S
 ## 9. Configuration (.env)
 
 ```
-ESPN_LEAGUE_ID=
+ESPN_LEAGUE_IDS=         # one or more, comma separated
 ESPN_YEAR=2026
-ESPN_S2=
+ESPN_S2=                 # shared by every league: the cookies belong to the account
 ESPN_SWID=
-ESPN_TEAM_ID=            # optional; auto-detected from SWID if empty
+ESPN_TEAM_IDS=           # optional, per league ("1669256142:16"); auto-detected from SWID if empty
 TIMEZONE=America/Denver
 QUIET_HOURS=23-8
 ACTIVE_LEAD_HOURS=2
@@ -294,4 +298,4 @@ Each step must run on its own before starting the next:
 
 - Which notification channel do I mainly use (ntfy / Telegram / email)?
 - Does the league use FAAB or waiver priority? What is the waiver processing day/time?
-- What is my `ESPN_TEAM_ID` (or just rely on SWID auto-detection)?
+- What is the id of my second league? (First league: 1669256142, my team id there is 16.)

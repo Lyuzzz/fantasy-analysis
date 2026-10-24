@@ -13,6 +13,10 @@ class EspnAuthError(Exception):
 
 
 class EspnClient:
+    """One client per league. The cookies belong to the account, so every
+    league uses the same espn_s2 and SWID. The NFL schedule does not depend on
+    the league: fetch it once per check, not once per league."""
+
     def __init__(self, league_id: str, year: int, espn_s2: str, swid: str):
         self.league_id = league_id
         self.year = year

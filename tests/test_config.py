@@ -8,7 +8,7 @@ _CHANNEL_VARS = [
     "EMAIL_FROM", "EMAIL_PASSWORD", "EMAIL_TO", "NTFY_TOPIC",
     "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "DISCORD_WEBHOOK_URL",
 ]
-_ESPN_VARS = ["ESPN_LEAGUE_ID", "ESPN_S2", "ESPN_SWID"]
+_ESPN_VARS = ["ESPN_LEAGUE_IDS", "ESPN_S2", "ESPN_SWID"]
 
 
 def _clear(monkeypatch, names):
@@ -51,6 +51,46 @@ def test_bad_quiet_hours_are_rejected(monkeypatch):
 
 def test_bad_number_is_rejected(monkeypatch):
     monkeypatch.setenv("FA_MIN_GAIN", "a lot")
+    with pytest.raises(ConfigError):
+        Settings()
+
+
+def test_no_leagues_by_default(monkeypatch):
+    _clear(monkeypatch, ["ESPN_LEAGUE_IDS", "ESPN_TEAM_IDS"])
+    s = Settings()
+    assert s.espn_league_ids == ()
+    assert s.team_id_for("1669256142") == ""
+
+
+def test_league_ids_are_split_trimmed_and_deduplicated(monkeypatch):
+    monkeypatch.setenv("ESPN_LEAGUE_IDS", " 1669256142 , 2222222 ,1669256142,")
+    assert Settings().espn_league_ids == ("1669256142", "2222222")
+
+
+def test_league_ids_must_be_numbers(monkeypatch):
+    monkeypatch.setenv("ESPN_LEAGUE_IDS", "1669256142,my-league")
+    with pytest.raises(ConfigError):
+        Settings()
+
+
+def test_team_ids_are_read_per_league(monkeypatch):
+    monkeypatch.setenv("ESPN_LEAGUE_IDS", "1669256142,2222222")
+    monkeypatch.setenv("ESPN_TEAM_IDS", "1669256142:16")
+    s = Settings()
+    assert s.team_id_for("1669256142") == "16"
+    assert s.team_id_for("2222222") == ""  # detect from SWID
+
+
+def test_team_ids_must_belong_to_a_configured_league(monkeypatch):
+    monkeypatch.setenv("ESPN_LEAGUE_IDS", "1669256142")
+    monkeypatch.setenv("ESPN_TEAM_IDS", "9999999:3")
+    with pytest.raises(ConfigError):
+        Settings()
+
+
+def test_bad_team_ids_format_is_rejected(monkeypatch):
+    monkeypatch.setenv("ESPN_LEAGUE_IDS", "1669256142")
+    monkeypatch.setenv("ESPN_TEAM_IDS", "16")
     with pytest.raises(ConfigError):
         Settings()
 

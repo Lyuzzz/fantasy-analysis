@@ -37,6 +37,20 @@ def test_different_keys_are_independent():
     assert store.is_sent("lineup:7:swap-b") is False
 
 
+def test_league_id_is_stored_with_the_alert(tmp_path):
+    import sqlite3
+
+    store.mark_sent(Alert(kind=LINEUP, key="111:lineup:7:a", title="T", body="B", week=7, league_id="111"))
+    row = sqlite3.connect(tmp_path / "test.db").execute("SELECT league_id FROM sent_alerts").fetchone()
+    assert row == ("111",)
+
+
+def test_the_same_swap_in_two_leagues_is_two_alerts():
+    # Keys start with the league id, so one league's alert never hides the other's.
+    assert store.mark_sent(Alert(kind=LINEUP, key="111:lineup:7:a", title="T", body="B", league_id="111")) is True
+    assert store.mark_sent(Alert(kind=LINEUP, key="222:lineup:7:a", title="T", body="B", league_id="222")) is True
+
+
 def test_kv_returns_default_then_stored_value_then_overwrite():
     assert store.get_kv("cookie_expired_reported") is None
     assert store.get_kv("cookie_expired_reported", "no") == "no"

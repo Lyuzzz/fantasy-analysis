@@ -116,7 +116,8 @@ class Notifier:
         self.channels = build_channels() if channels is None else channels
 
     def send(self, alert: Alert) -> bool:
-        return self.send_text(alert.title, alert.body, alert.urgent)
+        title = f"[{alert.league_name}] {alert.title}" if alert.league_name else alert.title
+        return self.send_text(title, alert.body, alert.urgent)
 
     def send_text(self, title: str, body: str, urgent: bool = False) -> bool:
         if not self.channels:

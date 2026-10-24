@@ -77,9 +77,13 @@ class Alert:
     """One message the user may need to act on."""
 
     kind: str
-    key: str  # de-dup key, see SPEC 6.1
+    key: str  # de-dup key, see SPEC 6.1. Starts with the league id for league alerts
     title: str
     body: str
     urgent: bool = False  # urgent alerts ignore quiet hours
     week: int | None = None
+    # Empty for account-level alerts (cookie expired, heartbeat). With several
+    # leagues the name is shown in the push title so you know which one it is.
+    league_id: str = ""
+    league_name: str = ""
     payload: dict = field(default_factory=dict)  # numbers for the AI step

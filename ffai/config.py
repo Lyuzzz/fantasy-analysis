@@ -60,14 +60,48 @@ def _parse_quiet_hours(raw: str) -> tuple[int, int]:
     return start, end
 
 
+def _parse_league_ids(raw: str) -> tuple[str, ...]:
+    """'111, 222' -> ('111', '222'). Order is kept, duplicates are dropped."""
+    ids: list[str] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if not part.isdigit():
+            raise ConfigError(f"ESPN_LEAGUE_IDS must be numbers separated by commas, got {part!r}")
+        if part not in ids:
+            ids.append(part)
+    return tuple(ids)
+
+
+def _parse_team_ids(raw: str, league_ids: tuple[str, ...]) -> dict[str, str]:
+    """'111:16, 222:3' -> {'111': '16', '222': '3'}."""
+    mapping: dict[str, str] = {}
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        league_id, sep, team_id = part.partition(":")
+        if not sep or not league_id.strip().isdigit() or not team_id.strip().isdigit():
+            raise ConfigError(f"ESPN_TEAM_IDS must look like '111:16,222:3', got {part!r}")
+        if league_id.strip() not in league_ids:
+            raise ConfigError(f"ESPN_TEAM_IDS names league {league_id.strip()}, which is not in ESPN_LEAGUE_IDS")
+        mapping[league_id.strip()] = team_id.strip()
+    return mapping
+
+
 class Settings:
     def __init__(self):
         # --- ESPN ---
-        self.espn_league_id = _str("ESPN_LEAGUE_ID")
+        # One account can play in several leagues. The two cookies below
+        # belong to the account, so they are shared by every league.
+        self.espn_league_ids = _parse_league_ids(_str("ESPN_LEAGUE_IDS"))
         self.espn_year = _int("ESPN_YEAR", 2026)
         self.espn_s2 = _str("ESPN_S2")
         self.espn_swid = _str("ESPN_SWID")
-        self.espn_team_id = _str("ESPN_TEAM_ID")  # empty = detect from SWID
+        # Normally empty: "my" team is the one whose owners include SWID.
+        # Set it per league only when that detection does not work.
+        self.espn_team_ids = _parse_team_ids(_str("ESPN_TEAM_IDS"), self.espn_league_ids)
 
         # --- time ---
         # Everything internal is UTC. The zone is only used to show times and
@@ -121,10 +155,14 @@ class Settings:
             names.append("discord")
         return names
 
+    def team_id_for(self, league_id: str) -> str:
+        """Manual team id override for one league, or '' to detect it from SWID."""
+        return self.espn_team_ids.get(league_id, "")
+
     def require_espn(self) -> None:
         """Raise ConfigError if the ESPN login settings are incomplete."""
         required = {
-            "ESPN_LEAGUE_ID": self.espn_league_id,
+            "ESPN_LEAGUE_IDS": self.espn_league_ids,
             "ESPN_S2": self.espn_s2,
             "ESPN_SWID": self.espn_swid,
         }
@@ -135,7 +173,8 @@ class Settings:
     def __repr__(self) -> str:
         # espn_s2 is a login credential. Never let it reach a log line by
         # accident (for example through logger.debug(settings)).
-        return f"<Settings league={self.espn_league_id or '-'} year={self.espn_year} (secrets hidden)>"
+        leagues = ",".join(self.espn_league_ids) or "-"
+        return f"<Settings leagues={leagues} year={self.espn_year} (secrets hidden)>"
 
 
 settings = Settings()

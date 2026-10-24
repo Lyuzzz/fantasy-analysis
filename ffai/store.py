@@ -22,6 +22,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS sent_alerts (
     key      TEXT PRIMARY KEY,
     kind     TEXT NOT NULL,
+    league_id TEXT NOT NULL DEFAULT '',
     week     INTEGER,
     title    TEXT NOT NULL,
     sent_at  TEXT NOT NULL
@@ -64,8 +65,8 @@ def mark_sent(alert: Alert) -> bool:
     try:
         with _session() as conn:
             conn.execute(
-                "INSERT INTO sent_alerts (key, kind, week, title, sent_at) VALUES (?, ?, ?, ?, ?)",
-                (alert.key, alert.kind, alert.week, alert.title, _now()),
+                "INSERT INTO sent_alerts (key, kind, league_id, week, title, sent_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (alert.key, alert.kind, alert.league_id, alert.week, alert.title, _now()),
             )
         return True
     except sqlite3.IntegrityError:
