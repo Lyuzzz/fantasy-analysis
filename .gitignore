@@ -1,0 +1,18 @@
+# Secrets (contains espn_s2 / SWID / API keys)
+.env
+
+# Local state
+*.db
+*.sqlite3
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
